@@ -14,6 +14,7 @@ public class BetterMapsMod implements ModInitializer {
 
 	@Override
 	public void onInitialize() {
+		LOGGER.info("Better Maps Mod Loaded!");
 	}
 	public static Identifier id(String path) {
 		return Identifier.fromNamespaceAndPath(MOD_ID, path);

@@ -20,6 +20,9 @@
 		],
 		"fabric-datagen": [
 			"net.meellowamg.bettermapsmod.BetterMapsModDataGenerator"
+		],
+		"client": [
+			"net.meellowamg.bettermapsmod.BetterMapsModClient"
 		]
 	},
 	"mixins": [
