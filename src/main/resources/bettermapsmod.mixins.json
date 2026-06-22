@@ -3,7 +3,8 @@
 	"package": "net.meellowamg.bettermapsmod.mixin",
 	"compatibilityLevel": "JAVA_25",
 	"mixins": [
-		"ExampleMixin"
+		"MixinMapRenderer",
+		"MixinMapTextureManager"
 	],
 	"injectors": {
 		"defaultRequire": 1
