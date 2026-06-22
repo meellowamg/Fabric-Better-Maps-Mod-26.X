@@ -1,7 +1,9 @@
 package net.meellowamg.bettermapsmod.mixin;
 
 import com.mojang.blaze3d.platform.NativeImage;
+import net.meellowamg.bettermapsmod.BetterMapsModClient;
 import net.minecraft.client.renderer.texture.DynamicTexture;
+import net.minecraft.resources.Identifier;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import org.spongepowered.asm.mixin.Mixin;
@@ -19,6 +21,9 @@ public class MixinMapTextureManager {
     @Shadow
     private DynamicTexture texture;
 
+    @Shadow
+    private Identifier location;
+
     @Inject(method = "updateTextureIfNeeded", at = @At("HEAD"), cancellable = true)
     private void onUpdateTexture(CallbackInfo ci) {
         NativeImage pixels = this.texture.getPixels();
@@ -29,23 +34,31 @@ public class MixinMapTextureManager {
                 int i = x + y * 128;
                 int color = MapColor.getColorFromPackedId(this.data.colors[i]);
 
-                // NativeImage is ABGR so extract channels accordingly
                 int r = color & 0xFF;
                 int g = (color >> 8) & 0xFF;
                 int b = (color >> 16) & 0xFF;
 
-                // Boost contrast by 30%
-                r = (int) Math.min(255, r * 1.3);
-                g = (int) Math.min(255, g * 1.3);
-                b = (int) Math.min(255, b * 1.3);
+                r = (int) Math.min(255, r * 1.05);
+                g = (int) Math.min(255, g * 1.05);
+                b = (int) Math.min(255, b * 1.05);
 
-                // Pack back into ABGR format
                 int enhanced = (0xFF << 24) | (b << 16) | (g << 8) | r;
                 pixels.setPixel(x, y, enhanced);
             }
         }
 
         this.texture.upload();
+
+        // Store map data whenever this is our locked map
+        if (this.location != null && this.location.equals(BetterMapsModClient.currentMapTexture)) {
+            BetterMapsModClient.currentMapData = this.data;
+        }
+
+        // Also store before locking so data is ready
+        if (!BetterMapsModClient.minimapEnabled) {
+            BetterMapsModClient.currentMapData = this.data;
+        }
+
         ci.cancel();
     }
 }
