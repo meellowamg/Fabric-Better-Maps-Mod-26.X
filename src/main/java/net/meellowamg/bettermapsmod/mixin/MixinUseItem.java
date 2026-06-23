@@ -2,6 +2,7 @@ package net.meellowamg.bettermapsmod.mixin;
 
 import net.meellowamg.bettermapsmod.BetterMapsMod;
 import net.meellowamg.bettermapsmod.BetterMapsModClient;
+import net.meellowamg.bettermapsmod.MinimapRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.item.ItemStack;
@@ -22,6 +23,9 @@ public class MixinUseItem {
         ItemStack held = mc.player.getMainHandItem();
         if (held.is(Items.FILLED_MAP)) {
             BetterMapsModClient.minimapEnabled = !BetterMapsModClient.minimapEnabled;
+            if (!BetterMapsModClient.minimapEnabled) {
+                MinimapRenderer.reset();
+            }
             BetterMapsMod.LOGGER.info("Minimap toggled: " + BetterMapsModClient.minimapEnabled);
         }
     }

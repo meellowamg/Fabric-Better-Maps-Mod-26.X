@@ -1,10 +1,14 @@
 package net.meellowamg.bettermapsmod.mixin;
 
+import net.meellowamg.bettermapsmod.BetterMapsMod;
 import net.meellowamg.bettermapsmod.BetterMapsModClient;
 import net.meellowamg.bettermapsmod.MinimapRenderer;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MapRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
 import net.minecraft.client.renderer.state.MapRenderState;
+import net.minecraft.world.level.saveddata.maps.MapId;
+import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
 import com.mojang.blaze3d.vertex.PoseStack;
 import org.spongepowered.asm.mixin.Mixin;
 import org.spongepowered.asm.mixin.injection.At;
@@ -18,25 +22,26 @@ public class MixinMapRenderer {
     private void onRender(MapRenderState mapRenderState, PoseStack poseStack,
                           SubmitNodeCollector submitNodeCollector, boolean showOnlyFrame,
                           int lightCoords, CallbackInfo ci) {
+        if (mapRenderState.texture == null) return;
+
         if (!BetterMapsModClient.minimapEnabled) {
-            if (mapRenderState.texture != null) {
-                BetterMapsModClient.currentMapTexture = mapRenderState.texture;
-                updateMarker(mapRenderState);
-            }
+            BetterMapsModClient.currentMapTexture = mapRenderState.texture;
+            updateMarkerFromDecorations(mapRenderState);
         } else {
-            if (mapRenderState.texture != null &&
-                    mapRenderState.texture.equals(BetterMapsModClient.currentMapTexture)) {
-                updateMarker(mapRenderState);
+            if (mapRenderState.texture.equals(BetterMapsModClient.currentMapTexture)) {
+                updateMarkerFromDecorations(mapRenderState);
             }
         }
     }
 
-    private void updateMarker(MapRenderState mapRenderState) {
+    private void updateMarkerFromDecorations(MapRenderState mapRenderState) {
         for (MapRenderState.MapDecorationRenderState decoration : mapRenderState.decorations) {
             if (decoration.atlasSprite != null) {
-                MinimapRenderer.lockedMarkerX = (decoration.x + 128) / 256.0f;
-                MinimapRenderer.lockedMarkerY = (decoration.y + 128) / 256.0f;
-                break;
+                MinimapRenderer.targetMarkerX = (decoration.x + 128f) / 256f;
+                MinimapRenderer.targetMarkerY = (decoration.y + 128f) / 256f;
+                MinimapRenderer.markerRot = decoration.rot;
+                MinimapRenderer.markerOffMap = decoration.renderOnFrame;
+                return;
             }
         }
     }
