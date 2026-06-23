@@ -1,6 +1,5 @@
 package net.meellowamg.bettermapsmod.mixin;
 
-import net.meellowamg.bettermapsmod.BetterMapsMod;
 import net.meellowamg.bettermapsmod.BetterMapsModClient;
 import net.meellowamg.bettermapsmod.MinimapRenderer;
 import net.minecraft.client.Minecraft;
@@ -25,24 +24,31 @@ public class MixinMapRenderer {
         if (mapRenderState.texture == null) return;
 
         if (!BetterMapsModClient.minimapEnabled) {
+            // Not locked - update texture reference
             BetterMapsModClient.currentMapTexture = mapRenderState.texture;
-            updateMarkerFromDecorations(mapRenderState);
+            // Also try to grab map data now
+            tryUpdateMapData(mapRenderState);
         } else {
             if (mapRenderState.texture.equals(BetterMapsModClient.currentMapTexture)) {
-                updateMarkerFromDecorations(mapRenderState);
+                tryUpdateMapData(mapRenderState);
             }
         }
     }
 
-    private void updateMarkerFromDecorations(MapRenderState mapRenderState) {
-        for (MapRenderState.MapDecorationRenderState decoration : mapRenderState.decorations) {
-            if (decoration.atlasSprite != null) {
-                MinimapRenderer.targetMarkerX = (decoration.x + 128f) / 256f;
-                MinimapRenderer.targetMarkerY = (decoration.y + 128f) / 256f;
-                MinimapRenderer.markerRot = decoration.rot;
-                MinimapRenderer.markerOffMap = decoration.renderOnFrame;
-                return;
+    private void tryUpdateMapData(MapRenderState mapRenderState) {
+        if (mapRenderState.texture == null) return;
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level == null) return;
+
+        String path = mapRenderState.texture.getPath();
+        if (!path.startsWith("map/")) return;
+
+        try {
+            int mapId = Integer.parseInt(path.substring(4));
+            MapItemSavedData data = mc.level.getMapData(new MapId(mapId));
+            if (data != null) {
+                BetterMapsModClient.currentMapData = data;
             }
-        }
+        } catch (NumberFormatException ignored) {}
     }
 }

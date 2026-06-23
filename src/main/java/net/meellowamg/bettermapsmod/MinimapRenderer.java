@@ -14,21 +14,15 @@ public class MinimapRenderer {
     private static final int BORDER = 6;
     private static final int MARGIN = 10;
     private static final int ICON_SIZE = 8;
+    private static final float SMOOTH_SPEED = 0.2f;
 
-    // Target position set by mixin
     public static float targetMarkerX = -1;
     public static float targetMarkerY = -1;
-
-    // Smoothed position for rendering
     private static float smoothMarkerX = -1;
     private static float smoothMarkerY = -1;
-
     public static byte markerRot = 0;
     private static float smoothMarkerRot = 0;
     public static boolean markerOffMap = false;
-
-    // Feature 3: smooth interpolation speed
-    private static final float SMOOTH_SPEED = 0.15f;
 
     public static void render(Object contextObj) {
         if (!BetterMapsModClient.minimapEnabled) return;
@@ -38,21 +32,7 @@ public class MinimapRenderer {
         Minecraft client = Minecraft.getInstance();
         int screenWidth = client.getWindow().getGuiScaledWidth();
 
-        // Feature 3: Update marker from player position every frame
-        // This allows the marker to update even without holding the map
-        if (BetterMapsModClient.currentMapData != null && client.player != null) {
-            int scale = 1 << BetterMapsModClient.currentMapData.scale;
-            float halfBlocks = 64.0f * scale;
-            float px = (client.player.getBlockX() - BetterMapsModClient.currentMapData.centerX + halfBlocks) / (halfBlocks * 2.0f);
-            float pz = (client.player.getBlockZ() - BetterMapsModClient.currentMapData.centerZ + halfBlocks) / (halfBlocks * 2.0f);
-            // Only update from player position if we have valid map data with correct center
-            if (BetterMapsModClient.currentMapData.centerX != 0 || BetterMapsModClient.currentMapData.centerZ != 0) {
-                targetMarkerX = px;
-                targetMarkerY = pz;
-            }
-        }
-
-        // Feature 3: Smooth interpolation of marker position
+        // Smooth position interpolation
         if (targetMarkerX >= 0 && targetMarkerY >= 0) {
             if (smoothMarkerX < 0) {
                 smoothMarkerX = targetMarkerX;
@@ -63,13 +43,12 @@ public class MinimapRenderer {
             }
         }
 
-        // Feature 4: Smooth rotation interpolation
+        // Smooth rotation interpolation with wraparound
         float targetRot = markerRot * 360.0f / 16.0f;
         float rotDiff = targetRot - smoothMarkerRot;
-        // Handle wrap-around
         while (rotDiff > 180) rotDiff -= 360;
         while (rotDiff < -180) rotDiff += 360;
-        smoothMarkerRot += rotDiff * 0.2f;
+        smoothMarkerRot += rotDiff * 0.25f;
 
         int x = screenWidth - SIZE - MARGIN;
         int y = MARGIN;
@@ -81,17 +60,18 @@ public class MinimapRenderer {
         context.blit(MAP_BACKGROUND, x, y, x + SIZE, y + SIZE, 0.0f, 1.0f, 0.0f, 1.0f);
 
         // Draw map texture
-        context.blit(BetterMapsModClient.currentMapTexture, mapX, mapY, mapX + mapSize, mapY + mapSize, 0.0f, 1.0f, 0.0f, 1.0f);
+        context.blit(BetterMapsModClient.currentMapTexture, mapX, mapY,
+                mapX + mapSize, mapY + mapSize, 0.0f, 1.0f, 0.0f, 1.0f);
 
         if (smoothMarkerX < 0 || smoothMarkerY < 0) return;
 
-        float clampedX = Math.max(0, Math.min(1, smoothMarkerX));
-        float clampedY = Math.max(0, Math.min(1, smoothMarkerY));
+        float clampedX = Math.max(0.01f, Math.min(0.99f, smoothMarkerX));
+        float clampedY = Math.max(0.01f, Math.min(0.99f, smoothMarkerY));
 
         int mx = mapX + (int)(clampedX * mapSize) - ICON_SIZE / 2;
         int my = mapY + (int)(clampedY * mapSize) - ICON_SIZE / 2;
 
-        // markerOffMap true = off map = show circle
+        // Off map = circle, on map = arrow
         Identifier icon = markerOffMap ? PLAYER_OFF_MAP : PLAYER_ICON;
 
         context.pose().pushMatrix();

@@ -1,7 +1,6 @@
 package net.meellowamg.bettermapsmod.mixin;
 
 import com.mojang.blaze3d.platform.NativeImage;
-import net.meellowamg.bettermapsmod.BetterMapsModClient;
 import net.minecraft.client.renderer.texture.DynamicTexture;
 import net.minecraft.world.level.material.MapColor;
 import net.minecraft.world.level.saveddata.maps.MapItemSavedData;
@@ -37,38 +36,29 @@ public class MixinMapTextureManager {
                 int g = (color >> 8) & 0xFF;
                 int b = (color >> 16) & 0xFF;
 
-                // Feature 1 & 5: Enhanced height shading for better terrain readability
-                float shadeMult = switch (shade) {
-                    case 0 -> 0.68f;   // dark - valleys
-                    case 1 -> 0.85f;   // medium - slopes
-                    case 2 -> 1.0f;    // normal - flat
-                    case 3 -> 1.18f;   // bright - peaks
-                    default -> 1.0f;
-                };
+                if (colorId == 0) {
+                    // Unexplored - keep as is
+                    pixels.setPixel(x, y, (0xFF << 24) | (b << 16) | (g << 8) | r);
+                    continue;
+                }
 
-                // Feature 2: Enhanced water visibility
-                // Water color id is 12
                 if (colorId == 12) {
-                    // Make water deeper and more distinct blue
-                    r = (int) Math.min(255, r * 0.7f);
-                    g = (int) Math.min(255, g * 0.85f);
-                    b = (int) Math.min(255, b * 1.2f);
-
-                    // Enhance water depth shading more dramatically
+                    // Water - keep original colors, just enhance depth shading
                     float waterShade = switch (shade) {
-                        case 0 -> 0.55f;   // deep water - very dark
-                        case 1 -> 0.75f;   // medium depth
-                        case 2 -> 0.95f;   // shallow
-                        case 3 -> 1.1f;    // very shallow/edge
+                        case 0 -> 0.6f;   // deep
+                        case 1 -> 0.8f;   // medium
+                        case 2 -> 1.0f;   // normal
+                        case 3 -> 1.15f;  // shallow
                         default -> 1.0f;
                     };
+
                     r = (int) Math.min(255, r * waterShade);
                     g = (int) Math.min(255, g * waterShade);
                     b = (int) Math.min(255, b * waterShade);
 
-                    // Feature 2: Detect coastlines by checking neighbors
-                    boolean isCoastline = false;
+                    // Coastline detection - brighten water pixels next to land
                     if (x > 0 && x < 127 && y > 0 && y < 127) {
+                        boolean isCoastline = false;
                         int[] neighbors = {
                                 (x-1) + y * 128,
                                 (x+1) + y * 128,
@@ -82,29 +72,27 @@ public class MixinMapTextureManager {
                                 break;
                             }
                         }
+                        if (isCoastline) {
+                            r = (int) Math.min(255, r * 1.4f);
+                            g = (int) Math.min(255, g * 1.3f);
+                            b = (int) Math.min(255, b * 1.2f);
+                        }
                     }
-
-                    if (isCoastline) {
-                        // Slightly lighten coastline water pixels for border effect
-                        r = (int) Math.min(255, r * 1.3f);
-                        g = (int) Math.min(255, g * 1.2f);
-                        b = (int) Math.min(255, b * 1.1f);
-                    }
-
-                } else if (colorId == 0) {
-                    // Empty/unexplored - keep as is
-                    int enhanced = (0xFF << 24) | (b << 16) | (g << 8) | r;
-                    pixels.setPixel(x, y, enhanced);
-                    continue;
                 } else {
-                    // Feature 1: All other terrain - apply height shading + subtle boost
+                    // All terrain - height shading + subtle boost
+                    float shadeMult = switch (shade) {
+                        case 0 -> 0.68f;
+                        case 1 -> 0.85f;
+                        case 2 -> 1.0f;
+                        case 3 -> 1.18f;
+                        default -> 1.0f;
+                    };
                     r = (int) Math.min(255, r * shadeMult * 1.05f);
                     g = (int) Math.min(255, g * shadeMult * 1.05f);
                     b = (int) Math.min(255, b * shadeMult * 1.05f);
                 }
 
-                int enhanced = (0xFF << 24) | (b << 16) | (g << 8) | r;
-                pixels.setPixel(x, y, enhanced);
+                pixels.setPixel(x, y, (0xFF << 24) | (b << 16) | (g << 8) | r);
             }
         }
 
