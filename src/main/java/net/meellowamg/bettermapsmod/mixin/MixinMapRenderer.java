@@ -1,5 +1,6 @@
 package net.meellowamg.bettermapsmod.mixin;
 
+import net.meellowamg.bettermapsmod.BetterMapsMod;
 import net.meellowamg.bettermapsmod.BetterMapsModClient;
 import net.meellowamg.bettermapsmod.MinimapRenderer;
 import net.minecraft.client.Minecraft;
@@ -24,31 +25,39 @@ public class MixinMapRenderer {
         if (mapRenderState.texture == null) return;
 
         if (!BetterMapsModClient.minimapEnabled) {
-            // Not locked - update texture reference
             BetterMapsModClient.currentMapTexture = mapRenderState.texture;
-            // Also try to grab map data now
-            tryUpdateMapData(mapRenderState);
-        } else {
-            if (mapRenderState.texture.equals(BetterMapsModClient.currentMapTexture)) {
-                tryUpdateMapData(mapRenderState);
+        }
+
+        if (!mapRenderState.texture.equals(BetterMapsModClient.currentMapTexture)) return;
+
+        Minecraft mc = Minecraft.getInstance();
+        if (mc.level != null) {
+            String path = mapRenderState.texture.getPath();
+            if (path.startsWith("map/")) {
+                try {
+                    int mapId = Integer.parseInt(path.substring(4));
+                    MapItemSavedData data = mc.level.getMapData(new MapId(mapId));
+                    if (data != null) {
+                        BetterMapsModClient.currentMapData = data;
+                        BetterMapsMod.LOGGER.info("Map center: " + data.centerX + "," + data.centerZ + " scale:" + data.scale);
+                    }
+                } catch (NumberFormatException ignored) {}
             }
         }
-    }
 
-    private void tryUpdateMapData(MapRenderState mapRenderState) {
-        if (mapRenderState.texture == null) return;
-        Minecraft mc = Minecraft.getInstance();
-        if (mc.level == null) return;
-
-        String path = mapRenderState.texture.getPath();
-        if (!path.startsWith("map/")) return;
-
-        try {
-            int mapId = Integer.parseInt(path.substring(4));
-            MapItemSavedData data = mc.level.getMapData(new MapId(mapId));
-            if (data != null) {
-                BetterMapsModClient.currentMapData = data;
+        for (MapRenderState.MapDecorationRenderState decoration : mapRenderState.decorations) {
+            if (decoration.atlasSprite != null) {
+                int rawX = decoration.x;
+                int rawY = decoration.y;
+                float dx = (rawX + 128f) / 256f;
+                float dy = (rawY + 128f) / 256f;
+                MinimapRenderer.targetMarkerX = dx;
+                MinimapRenderer.targetMarkerY = dy;
+                MinimapRenderer.markerRot = decoration.rot;
+                MinimapRenderer.markerOffMap = dx < 0f || dx > 1f || dy < 0f || dy > 1f;
+                BetterMapsMod.LOGGER.info("decoration x=" + rawX + " y=" + rawY + " dx=" + dx + " offMap=" + MinimapRenderer.markerOffMap);
+                break;
             }
-        } catch (NumberFormatException ignored) {}
+        }
     }
 }

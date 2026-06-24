@@ -32,7 +32,7 @@ public class MinimapRenderer {
         Minecraft client = Minecraft.getInstance();
         int screenWidth = client.getWindow().getGuiScaledWidth();
 
-        // Smooth position interpolation
+        // Smooth position
         if (targetMarkerX >= 0 && targetMarkerY >= 0) {
             if (smoothMarkerX < 0) {
                 smoothMarkerX = targetMarkerX;
@@ -43,8 +43,8 @@ public class MinimapRenderer {
             }
         }
 
-        // Smooth rotation interpolation with wraparound
-        float targetRot = markerRot * 360.0f / 16.0f;
+        // Smooth rotation with wraparound
+        float targetRot = (markerRot & 0xFF) * 360.0f / 16.0f;
         float rotDiff = targetRot - smoothMarkerRot;
         while (rotDiff > 180) rotDiff -= 360;
         while (rotDiff < -180) rotDiff += 360;
@@ -65,23 +65,25 @@ public class MinimapRenderer {
 
         if (smoothMarkerX < 0 || smoothMarkerY < 0) return;
 
-        float clampedX = Math.max(0.01f, Math.min(0.99f, smoothMarkerX));
-        float clampedY = Math.max(0.01f, Math.min(0.99f, smoothMarkerY));
+        float clampedX = Math.max(0.02f, Math.min(0.98f, smoothMarkerX));
+        float clampedY = Math.max(0.02f, Math.min(0.98f, smoothMarkerY));
 
         int mx = mapX + (int)(clampedX * mapSize) - ICON_SIZE / 2;
         int my = mapY + (int)(clampedY * mapSize) - ICON_SIZE / 2;
 
-        // Off map = circle, on map = arrow
+        // markerOffMap true = off map = show circle
+        // markerOffMap false = on map = show arrow
         Identifier icon = markerOffMap ? PLAYER_OFF_MAP : PLAYER_ICON;
 
         context.pose().pushMatrix();
-        float centerX = mx + ICON_SIZE / 2f;
-        float centerY = my + ICON_SIZE / 2f;
-        context.pose().translate(centerX, centerY);
+        float cx = mx + ICON_SIZE / 2f;
+        float cy = my + ICON_SIZE / 2f;
+        context.pose().translate(cx, cy);
         if (!markerOffMap) {
+            // smoothMarkerRot is already in degrees, convert to radians
             context.pose().rotate((float)((smoothMarkerRot + 180.0) * Math.PI / 180.0));
         }
-        context.pose().translate(-centerX, -centerY);
+        context.pose().translate(-cx, -cy);
 
         context.blit(icon, mx, my, mx + ICON_SIZE, my + ICON_SIZE, 0.0f, 1.0f, 0.0f, 1.0f);
 

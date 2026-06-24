@@ -37,18 +37,19 @@ public class MixinMapTextureManager {
                 int b = (color >> 16) & 0xFF;
 
                 if (colorId == 0) {
-                    // Unexplored - keep as is
                     pixels.setPixel(x, y, (0xFF << 24) | (b << 16) | (g << 8) | r);
                     continue;
                 }
 
                 if (colorId == 12) {
-                    // Water - keep original colors, just enhance depth shading
+                    // Water depth shading
+                    // Vanilla water uses primarily shade 0 and 1
+                    // We amplify the difference between all shades significantly
                     float waterShade = switch (shade) {
-                        case 0 -> 0.6f;   // deep
-                        case 1 -> 0.8f;   // medium
-                        case 2 -> 1.0f;   // normal
-                        case 3 -> 1.15f;  // shallow
+                        case 0 -> 0.70f;  // deepest - noticeably darker
+                        case 1 -> 0.85f;  // deep
+                        case 2 -> 1.05f;  // medium
+                        case 3 -> 1.25f;  // shallowest - brighter
                         default -> 1.0f;
                     };
 
@@ -56,7 +57,7 @@ public class MixinMapTextureManager {
                     g = (int) Math.min(255, g * waterShade);
                     b = (int) Math.min(255, b * waterShade);
 
-                    // Coastline detection - brighten water pixels next to land
+                    // Coastline brightening
                     if (x > 0 && x < 127 && y > 0 && y < 127) {
                         boolean isCoastline = false;
                         int[] neighbors = {
@@ -75,11 +76,10 @@ public class MixinMapTextureManager {
                         if (isCoastline) {
                             r = (int) Math.min(255, r * 1.4f);
                             g = (int) Math.min(255, g * 1.3f);
-                            b = (int) Math.min(255, b * 1.2f);
+                            b = (int) Math.min(255, b * 1.15f);
                         }
                     }
                 } else {
-                    // All terrain - height shading + subtle boost
                     float shadeMult = switch (shade) {
                         case 0 -> 0.68f;
                         case 1 -> 0.85f;
