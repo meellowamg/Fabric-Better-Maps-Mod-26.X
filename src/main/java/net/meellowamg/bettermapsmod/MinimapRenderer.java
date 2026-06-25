@@ -14,7 +14,8 @@ public class MinimapRenderer {
     private static final int BORDER = 6;
     private static final int MARGIN = 10;
     private static final int ICON_SIZE = 8;
-    private static final float SMOOTH_SPEED = 0.2f;
+    private static final float SMOOTH_SPEED = 0.15f;
+    private static final float ROT_SMOOTH = 0.3f;
 
     public static float targetMarkerX = -1;
     public static float targetMarkerY = -1;
@@ -32,23 +33,32 @@ public class MinimapRenderer {
         Minecraft client = Minecraft.getInstance();
         int screenWidth = client.getWindow().getGuiScaledWidth();
 
-        // Smooth position
+        // Smooth position - snap if first frame or large jump
         if (targetMarkerX >= 0 && targetMarkerY >= 0) {
             if (smoothMarkerX < 0) {
+                // First time - snap immediately
                 smoothMarkerX = targetMarkerX;
                 smoothMarkerY = targetMarkerY;
             } else {
-                smoothMarkerX += (targetMarkerX - smoothMarkerX) * SMOOTH_SPEED;
-                smoothMarkerY += (targetMarkerY - smoothMarkerY) * SMOOTH_SPEED;
+                float distSq = (targetMarkerX - smoothMarkerX) * (targetMarkerX - smoothMarkerX)
+                        + (targetMarkerY - smoothMarkerY) * (targetMarkerY - smoothMarkerY);
+                if (distSq > 0.1f) {
+                    // Large jump (e.g. teleport) - snap
+                    smoothMarkerX = targetMarkerX;
+                    smoothMarkerY = targetMarkerY;
+                } else {
+                    smoothMarkerX += (targetMarkerX - smoothMarkerX) * SMOOTH_SPEED;
+                    smoothMarkerY += (targetMarkerY - smoothMarkerY) * SMOOTH_SPEED;
+                }
             }
         }
 
-        // Smooth rotation with wraparound
+        // Smooth rotation with shortest-path wraparound
         float targetRot = (markerRot & 0xFF) * 360.0f / 16.0f;
         float rotDiff = targetRot - smoothMarkerRot;
         while (rotDiff > 180) rotDiff -= 360;
         while (rotDiff < -180) rotDiff += 360;
-        smoothMarkerRot += rotDiff * 0.25f;
+        smoothMarkerRot += rotDiff * ROT_SMOOTH;
 
         int x = screenWidth - SIZE - MARGIN;
         int y = MARGIN;
@@ -56,23 +66,21 @@ public class MinimapRenderer {
         int mapY = y + BORDER;
         int mapSize = SIZE - BORDER * 2;
 
-        // Draw border
+        // Draw border then map
         context.blit(MAP_BACKGROUND, x, y, x + SIZE, y + SIZE, 0.0f, 1.0f, 0.0f, 1.0f);
-
-        // Draw map texture
         context.blit(BetterMapsModClient.currentMapTexture, mapX, mapY,
                 mapX + mapSize, mapY + mapSize, 0.0f, 1.0f, 0.0f, 1.0f);
 
         if (smoothMarkerX < 0 || smoothMarkerY < 0) return;
 
+        // Clamp marker to inside map area
         float clampedX = Math.max(0.02f, Math.min(0.98f, smoothMarkerX));
         float clampedY = Math.max(0.02f, Math.min(0.98f, smoothMarkerY));
 
         int mx = mapX + (int)(clampedX * mapSize) - ICON_SIZE / 2;
         int my = mapY + (int)(clampedY * mapSize) - ICON_SIZE / 2;
 
-        // markerOffMap true = off map = show circle
-        // markerOffMap false = on map = show arrow
+        // Choose icon: arrow when on-map, circle when off-map
         Identifier icon = markerOffMap ? PLAYER_OFF_MAP : PLAYER_ICON;
 
         context.pose().pushMatrix();
@@ -80,13 +88,13 @@ public class MinimapRenderer {
         float cy = my + ICON_SIZE / 2f;
         context.pose().translate(cx, cy);
         if (!markerOffMap) {
-            // smoothMarkerRot is already in degrees, convert to radians
-            context.pose().rotate((float)((smoothMarkerRot + 180.0) * Math.PI / 180.0));
+            // Rotate arrow to match player facing direction
+            float radians = (float)((smoothMarkerRot + 180.0) * Math.PI / 180.0);
+            context.pose().rotate(radians);
         }
         context.pose().translate(-cx, -cy);
 
         context.blit(icon, mx, my, mx + ICON_SIZE, my + ICON_SIZE, 0.0f, 1.0f, 0.0f, 1.0f);
-
         context.pose().popMatrix();
     }
 
