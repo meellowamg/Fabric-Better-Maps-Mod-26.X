@@ -5,12 +5,9 @@
 	"mixins": [
 		"MixinMapRenderer",
 		"MixinMapTextureManager",
+		"MixinMapItemSavedData",
 		"MixinUseItem"
 	],
-	"injectors": {
-		"defaultRequire": 1
-	},
-	"overwrites": {
-		"requireAnnotations": true
-	}
+	"injectors": { "defaultRequire": 1 },
+	"overwrites": { "requireAnnotations": true }
 }

@@ -21,11 +21,6 @@ public class BetterMapsModClient implements ClientModInitializer {
                 (context, tickCounter) -> MinimapRenderer.render(context)
         );
 
-        // No tick event needed - decoration data from MixinMapRenderer
-        // handles position updates every frame while holding the map.
-        // When not holding the map, the minimap freezes at last known position
-        // which is correct vanilla behavior.
-
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
             minimapEnabled = false;
             currentMapTexture = null;
