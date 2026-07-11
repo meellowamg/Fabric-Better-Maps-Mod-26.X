@@ -22,14 +22,12 @@ public class MixinMapRenderer {
                           int lightCoords, CallbackInfo ci) {
         if (mapRenderState.texture == null) return;
 
-        // Capture the texture when map is first viewed (before minimap enabled)
         if (!BetterMapsModClient.minimapEnabled) {
             BetterMapsModClient.currentMapTexture = mapRenderState.texture;
         }
 
         if (!mapRenderState.texture.equals(BetterMapsModClient.currentMapTexture)) return;
 
-        // Grab map data once - needed so MixinMapItemSavedData can match by instance
         if (BetterMapsModClient.currentMapData == null) {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level != null) {
@@ -46,5 +44,4 @@ public class MixinMapRenderer {
             }
         }
     }
-}
 }
