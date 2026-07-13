@@ -17,8 +17,8 @@ public class BetterMapsModClient implements ClientModInitializer {
     public void onInitializeClient() {
         BetterMapsMod.LOGGER.info("Better Maps Mod Client Loaded!");
 
-        // Load config on startup
         BetterMapsConfig.load();
+        BetterMapsKeyBindings.register();
 
         HudElementRegistry.addLast(
                 Identifier.fromNamespaceAndPath("bettermapsmod", "minimap"),

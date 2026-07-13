@@ -16,11 +16,24 @@ public class BetterMapsConfig {
     private static final Path CONFIG_PATH = FabricLoader.getInstance()
             .getConfigDir().resolve("bettermapsmod.json");
 
-    // Scale: 1.0 = default size, 2.0 = double size etc
-    public float minimapScale = 1.0f;
-    public int minimapMargin = 10;
-    public float minimapOpacity = 1.0f;
+    // Visual
+    public float minimapScale     = 1.0f;
+    public int   minimapMargin    = 10;
+    public float minimapOpacity   = 1.0f;
     public String minimapPosition = "TOP_RIGHT";
+    public int   borderColor      = 0xFF222222;
+    public int   borderThickness  = 2;
+    public float markerScale      = 1.0f;
+
+    // Functional
+    public boolean showMarker      = true;
+    public boolean showCoordinates = true;
+    public boolean showBiome       = true;
+    public boolean showMapScale    = true;
+
+    // Interaction
+    public String pinMapKey      = "CROUCH_RIGHT_CLICK"; // legacy default
+    public String toggleKey      = "NONE";               // dedicated toggle key
 
     private static BetterMapsConfig instance;
 
@@ -33,6 +46,7 @@ public class BetterMapsConfig {
         if (Files.exists(CONFIG_PATH)) {
             try (Reader reader = Files.newBufferedReader(CONFIG_PATH)) {
                 instance = GSON.fromJson(reader, BetterMapsConfig.class);
+                if (instance == null) instance = new BetterMapsConfig();
             } catch (IOException e) {
                 BetterMapsMod.LOGGER.error("Failed to load config", e);
                 instance = new BetterMapsConfig();
