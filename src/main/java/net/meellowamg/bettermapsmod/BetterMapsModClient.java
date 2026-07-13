@@ -11,10 +11,14 @@ public class BetterMapsModClient implements ClientModInitializer {
     public static boolean minimapEnabled = false;
     public static Identifier currentMapTexture = null;
     public static MapItemSavedData currentMapData = null;
+    public static int currentMapId = -1;
 
     @Override
     public void onInitializeClient() {
         BetterMapsMod.LOGGER.info("Better Maps Mod Client Loaded!");
+
+        // Load config on startup
+        BetterMapsConfig.load();
 
         HudElementRegistry.addLast(
                 Identifier.fromNamespaceAndPath("bettermapsmod", "minimap"),
@@ -25,6 +29,7 @@ public class BetterMapsModClient implements ClientModInitializer {
             minimapEnabled = false;
             currentMapTexture = null;
             currentMapData = null;
+            currentMapId = -1;
             MinimapRenderer.reset();
         });
     }

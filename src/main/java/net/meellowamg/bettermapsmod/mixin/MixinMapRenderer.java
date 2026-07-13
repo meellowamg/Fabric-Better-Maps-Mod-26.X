@@ -1,6 +1,7 @@
 package net.meellowamg.bettermapsmod.mixin;
 
 import net.meellowamg.bettermapsmod.BetterMapsModClient;
+import net.meellowamg.bettermapsmod.MinimapRenderer;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.renderer.MapRenderer;
 import net.minecraft.client.renderer.SubmitNodeCollector;
@@ -23,23 +24,32 @@ public class MixinMapRenderer {
         if (mapRenderState.texture == null) return;
 
         if (!BetterMapsModClient.minimapEnabled) {
+            // Texture changed - different map being viewed, reset
+            if (BetterMapsModClient.currentMapTexture != null
+                    && !BetterMapsModClient.currentMapTexture.equals(mapRenderState.texture)) {
+                BetterMapsModClient.currentMapData = null;
+                BetterMapsModClient.currentMapId = -1;
+                MinimapRenderer.reset();
+            }
             BetterMapsModClient.currentMapTexture = mapRenderState.texture;
+
+            // Parse and store the map ID from the texture path
+            String path = mapRenderState.texture.getPath();
+            if (path.startsWith("map/")) {
+                try {
+                    BetterMapsModClient.currentMapId = Integer.parseInt(path.substring(4));
+                } catch (NumberFormatException ignored) {}
+            }
         }
 
         if (!mapRenderState.texture.equals(BetterMapsModClient.currentMapTexture)) return;
 
-        if (BetterMapsModClient.currentMapData == null) {
+        if (BetterMapsModClient.currentMapData == null && BetterMapsModClient.currentMapId >= 0) {
             Minecraft mc = Minecraft.getInstance();
             if (mc.level != null) {
-                String path = mapRenderState.texture.getPath();
-                if (path.startsWith("map/")) {
-                    try {
-                        int mapId = Integer.parseInt(path.substring(4));
-                        MapItemSavedData data = mc.level.getMapData(new MapId(mapId));
-                        if (data != null) {
-                            BetterMapsModClient.currentMapData = data;
-                        }
-                    } catch (NumberFormatException ignored) {}
+                MapItemSavedData data = mc.level.getMapData(new MapId(BetterMapsModClient.currentMapId));
+                if (data != null) {
+                    BetterMapsModClient.currentMapData = data;
                 }
             }
         }

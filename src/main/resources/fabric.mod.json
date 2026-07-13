@@ -23,6 +23,9 @@
 		],
 		"client": [
 			"net.meellowamg.bettermapsmod.BetterMapsModClient"
+		],
+		"modmenu": [
+			"net.meellowamg.bettermapsmod.BetterMapsModMenuIntegration"
 		]
 	},
 	"mixins": [
