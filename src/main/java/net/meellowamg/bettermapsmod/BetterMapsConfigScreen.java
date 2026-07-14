@@ -4,6 +4,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
+import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.network.chat.Component;
 
@@ -12,9 +13,14 @@ public class BetterMapsConfigScreen extends Screen {
     private final Screen parent;
     private final BetterMapsConfig config;
 
-    // Border color presets: name -> ARGB
-    private static final String[] COLOR_NAMES  = { "Dark Gray", "Black", "White", "Brown", "Red", "Blue", "Green" };
-    private static final int[]    COLOR_VALUES  = { 0xFF222222, 0xFF000000, 0xFFFFFFFF, 0xFF6B4A2A, 0xFF8B0000, 0xFF00008B, 0xFF006400 };
+    // Scrolling
+    private int scrollOffset = 0;
+    private static final int SCROLL_AMOUNT = 20;
+    private int contentHeight = 0;
+
+    // Hex input boxes
+    private EditBox outerColorBox;
+    private EditBox innerColorBox;
 
     public BetterMapsConfigScreen(Screen parent) {
         super(Component.literal("Better Maps Settings"));
@@ -24,15 +30,16 @@ public class BetterMapsConfigScreen extends Screen {
 
     @Override
     protected void init() {
+        this.clearWidgets();
         int cx      = this.width / 2;
-        int y       = 20;
-        int spacing = 24;
+        int y       = 30 - scrollOffset;
+        int spacing = 26;
         int w       = 200;
         int h       = 20;
 
         // ---- VISUAL ----
         // Scale
-        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Map Scale: " + String.format("%.1f", config.minimapScale) + "x"),
                 (config.minimapScale - 0.5f) / 2.5f) {
             @Override protected void updateMessage() {
@@ -46,7 +53,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // Opacity
-        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Opacity: " + Math.round(config.minimapOpacity * 100) + "%"),
                 config.minimapOpacity) {
             @Override protected void updateMessage() {
@@ -59,7 +66,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // Margin
-        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Margin: " + config.minimapMargin),
                 config.minimapMargin / 50.0) {
             @Override protected void updateMessage() {
@@ -72,7 +79,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // Border thickness
-        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Border Thickness: " + config.borderThickness),
                 (config.borderThickness - 1) / 9.0) {
             @Override protected void updateMessage() {
@@ -84,30 +91,34 @@ public class BetterMapsConfigScreen extends Screen {
         });
         y += spacing;
 
-        // Border color
-        int currentColorIdx = 0;
-        for (int i = 0; i < COLOR_VALUES.length; i++) {
-            if (COLOR_VALUES[i] == config.borderColor) { currentColorIdx = i; break; }
-        }
-        final int[] colorIdx = { currentColorIdx };
-        this.addRenderableWidget(CycleButton.<String>builder(
-                        s -> Component.literal("Border Color: " + s),
-                        COLOR_NAMES[colorIdx[0]])
-                .withValues(COLOR_NAMES)
-                .create(cx - w / 2, y, w, h,
-                        Component.literal("Border Color"),
-                        (btn, val) -> {
-                            for (int i = 0; i < COLOR_NAMES.length; i++) {
-                                if (COLOR_NAMES[i].equals(val)) {
-                                    config.borderColor = COLOR_VALUES[i];
-                                    break;
-                                }
-                            }
-                        }));
+        // Outer border color hex
+        outerColorBox = new EditBox(this.font, cx - w / 2, y, w, h,
+                Component.literal("Outer Border Color"));
+        outerColorBox.setMaxLength(8);
+        outerColorBox.setValue(String.format("%06X", config.borderOuterColor & 0xFFFFFF));
+        outerColorBox.setResponder(val -> {
+            try {
+                config.borderOuterColor = (int)(0xFF000000L | Long.parseLong(val, 16));
+            } catch (NumberFormatException ignored) {}
+        });
+        addWidget(outerColorBox);
+        y += spacing;
+
+        // Inner border color hex
+        innerColorBox = new EditBox(this.font, cx - w / 2, y, w, h,
+                Component.literal("Inner Border Color"));
+        innerColorBox.setMaxLength(8);
+        innerColorBox.setValue(String.format("%06X", config.borderInnerColor & 0xFFFFFF));
+        innerColorBox.setResponder(val -> {
+            try {
+                config.borderInnerColor = (int)(0xFF000000L | Long.parseLong(val, 16));
+            } catch (NumberFormatException ignored) {}
+        });
+        addWidget(innerColorBox);
         y += spacing;
 
         // Marker size
-        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Marker Size: " + String.format("%.1f", config.markerScale) + "x"),
                 (config.markerScale - 0.5f) / 1.5f) {
             @Override protected void updateMessage() {
@@ -121,7 +132,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // Position
-        this.addRenderableWidget(CycleButton.<String>builder(
+        addWidget(CycleButton.<String>builder(
                         s -> Component.literal("Position: " + s),
                         config.minimapPosition)
                 .withValues("TOP_RIGHT", "TOP_LEFT", "BOTTOM_RIGHT", "BOTTOM_LEFT")
@@ -131,8 +142,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // ---- FUNCTIONAL ----
-        // Show marker toggle
-        this.addRenderableWidget(CycleButton.<Boolean>builder(
+        addWidget(CycleButton.<Boolean>builder(
                         b -> Component.literal("Show Marker: " + (b ? "ON" : "OFF")),
                         config.showMarker)
                 .withValues(true, false)
@@ -141,8 +151,7 @@ public class BetterMapsConfigScreen extends Screen {
                         (btn, val) -> config.showMarker = val));
         y += spacing;
 
-        // Show coordinates toggle
-        this.addRenderableWidget(CycleButton.<Boolean>builder(
+        addWidget(CycleButton.<Boolean>builder(
                         b -> Component.literal("Show Coordinates: " + (b ? "ON" : "OFF")),
                         config.showCoordinates)
                 .withValues(true, false)
@@ -151,8 +160,7 @@ public class BetterMapsConfigScreen extends Screen {
                         (btn, val) -> config.showCoordinates = val));
         y += spacing;
 
-        // Show biome toggle
-        this.addRenderableWidget(CycleButton.<Boolean>builder(
+        addWidget(CycleButton.<Boolean>builder(
                         b -> Component.literal("Show Biome: " + (b ? "ON" : "OFF")),
                         config.showBiome)
                 .withValues(true, false)
@@ -161,39 +169,57 @@ public class BetterMapsConfigScreen extends Screen {
                         (btn, val) -> config.showBiome = val));
         y += spacing;
 
-        // Show map scale toggle
-        this.addRenderableWidget(CycleButton.<Boolean>builder(
-                        b -> Component.literal("Show Map Scale: " + (b ? "ON" : "OFF")),
-                        config.showMapScale)
-                .withValues(true, false)
-                .create(cx - w / 2, y, w, h,
-                        Component.literal("Show Map Scale"),
-                        (btn, val) -> config.showMapScale = val));
-        y += spacing;
-
-        // ---- INTERACTION ----
-        // Pin map key
-        this.addRenderableWidget(CycleButton.<String>builder(
-                        s -> Component.literal("Pin Key: " + s),
-                        config.pinMapKey)
-                .withValues("CROUCH_RIGHT_CLICK", "RIGHT_CLICK")
-                .create(cx - w / 2, y, w, h,
-                        Component.literal("Pin Key"),
-                        (btn, val) -> config.pinMapKey = val));
+        // ---- KEYBIND INFO ----
+        // Keybind is set in Minecraft Controls menu, just show info
+        y += 4;
+        addWidget(Button.builder(
+                Component.literal("Toggle Key: set in Controls menu"), btn -> {
+                    // Open controls screen
+                    this.minecraft.setScreen(
+                            new net.minecraft.client.gui.screens.controls.ControlsScreen(this, this.minecraft.options)
+                    );
+                }).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
 
         // Done
-        this.addRenderableWidget(Button.builder(
+        addWidget(Button.builder(
                 Component.literal("Done"), btn -> {
                     BetterMapsConfig.save();
                     this.minecraft.setScreen(parent);
-                }).bounds(cx - 75, y + 4, 150, 20).build());
+                }).bounds(cx - w / 2, y, w, h).build());
+        y += spacing;
+
+        contentHeight = y + scrollOffset + 10;
+    }
+
+    private void addWidget(net.minecraft.client.gui.components.AbstractWidget widget) {
+        // Only add if visible on screen
+        this.addRenderableWidget(widget);
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
+        int maxScroll = Math.max(0, contentHeight - this.height);
+        scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - scrollY * SCROLL_AMOUNT));
+        this.init();
+        return true;
     }
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-        graphics.text(this.font, this.title, this.width / 2, 6, 0xFFFFFF, true);
+        // Title
+        graphics.text(this.font, this.title, this.width / 2, 8, 0xFFFFFF, true);
+        // Section headers
+        int cx = this.width / 2;
+        int baseY = 30 - scrollOffset;
+        int spacing = 26;
+        graphics.text(this.font, "-- Visual --",       cx - 100, baseY - 14,          0xAAAAAA, false);
+        graphics.text(this.font, "-- Functional --",   cx - 100, baseY + spacing * 8 - 14,  0xAAAAAA, false);
+        graphics.text(this.font, "-- Interaction --",  cx - 100, baseY + spacing * 11 - 14, 0xAAAAAA, false);
+        // Hex field labels
+        graphics.text(this.font, "Outer Border Color (hex):", cx - 100, baseY + spacing * 4 - 12, 0xCCCCCC, false);
+        graphics.text(this.font, "Inner Border Color (hex):", cx - 100, baseY + spacing * 5 - 12, 0xCCCCCC, false);
     }
 
     @Override

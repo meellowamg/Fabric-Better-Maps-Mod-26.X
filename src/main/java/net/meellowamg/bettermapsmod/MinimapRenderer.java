@@ -35,13 +35,14 @@ public class MinimapRenderer {
         if (!(contextObj instanceof GuiGraphicsExtractor context)) return;
 
         BetterMapsConfig config = BetterMapsConfig.get();
-        float scale     = config.minimapScale;
-        int   MARGIN    = config.minimapMargin;
-        int   alpha     = (int)(config.minimapOpacity * 255);
-        int   texColor  = (alpha << 24) | 0xFFFFFF;
-        int   thickness = Math.max(1, config.borderThickness);
-        int   bColor    = applyAlpha(config.borderColor, alpha);
-        float mScale    = config.markerScale;
+        float scale       = config.minimapScale;
+        int   MARGIN      = config.minimapMargin;
+        int   alpha       = (int)(config.minimapOpacity * 255);
+        int   texColor    = (alpha << 24) | 0xFFFFFF;
+        int   thickness   = Math.max(1, config.borderThickness);
+        int   outerColor  = applyAlpha(config.borderOuterColor, alpha);
+        int   innerColor  = applyAlpha(config.borderInnerColor, alpha);
+        float mScale      = config.markerScale;
 
         Minecraft client = Minecraft.getInstance();
         int screenWidth  = client.getWindow().getGuiScaledWidth();
@@ -50,49 +51,48 @@ public class MinimapRenderer {
         int total     = BASE_MAP + thickness * 2;
         int totalSize = Math.round(total * scale);
 
-        // Gather text lines
+        // Gather text
         String coordText = null;
         String biomeText = null;
-        String scaleText = null;
 
         if (client.player != null) {
             if (config.showCoordinates) {
-                int px = client.player.getBlockX();
-                int py = client.player.getBlockY();
-                int pz = client.player.getBlockZ();
-                coordText = "X: " + px + "  Y: " + py + "  Z: " + pz;
+                coordText = "X: " + client.player.getBlockX()
+                        + "  Y: " + client.player.getBlockY()
+                        + "  Z: " + client.player.getBlockZ();
             }
             if (config.showBiome && client.level != null) {
                 BlockPos pos = client.player.blockPosition();
                 Holder<Biome> biomeHolder = client.level.getBiome(pos);
-                String biomeName = biomeHolder.unwrapKey()
+                biomeText = biomeHolder.unwrapKey()
                         .map(k -> {
                             String fullName = k.toString();
-                            int lastSlash = fullName.lastIndexOf('/');
+                            // Extract path after last '/' and before ']'
+                            // e.g. "ResourceKey[minecraft:worldgen/biome / minecraft:cherry_grove]"
+                            int lastSlash   = fullName.lastIndexOf('/');
                             int lastBracket = fullName.lastIndexOf(']');
                             String path = (lastSlash >= 0 && lastBracket > lastSlash)
                                     ? fullName.substring(lastSlash + 1, lastBracket).trim()
-                                    : "Unknown";
+                                    : fullName;
+                            // Strip namespace prefix like "minecraft:"
+                            int colon = path.indexOf(':');
+                            if (colon >= 0) path = path.substring(colon + 1);
+                            // Capitalize words
                             String[] words = path.split("_");
                             StringBuilder sb = new StringBuilder();
-                            for (String w : words) {
-                                if (!w.isEmpty()) {
-                                    sb.append(Character.toUpperCase(w.charAt(0)))
-                                            .append(w.substring(1)).append(" ");
+                            for (String word : words) {
+                                if (!word.isEmpty()) {
+                                    sb.append(Character.toUpperCase(word.charAt(0)))
+                                            .append(word.substring(1)).append(" ");
                                 }
                             }
                             return sb.toString().trim();
                         })
                         .orElse("Unknown");
-                biomeText = biomeName;
-            }
-            if (config.showMapScale && BetterMapsModClient.currentMapData != null) {
-                int mapScale = 1 << BetterMapsModClient.currentMapData.scale;
-                scaleText = "Scale 1:" + mapScale;
             }
         }
 
-        // Position of minimap corner
+        // Minimap corner position
         int x, y;
         switch (config.minimapPosition) {
             case "TOP_LEFT"     -> { x = MARGIN;                            y = MARGIN; }
@@ -126,17 +126,17 @@ public class MinimapRenderer {
         while (rotDiff < -180) rotDiff += 360;
         smoothMarkerRot += rotDiff * ROT_SMOOTH;
 
-        // Scale everything from corner
+        // Render minimap
         context.pose().pushMatrix();
         context.pose().translate(x, y);
         context.pose().scale(scale, scale);
 
-        // Border layers
-        for (int i = 0; i < thickness; i++) {
-            float t = thickness <= 1 ? 1f : (float) i / (thickness - 1);
-            int layerColor = lerpColor(bColor, lighten(bColor, 0.3f), t);
-            context.fill(i, i, total - i, total - i, layerColor);
-        }
+        // Outer border line
+        context.fill(0, 0, total, total, outerColor);
+        // Inner border fill
+        context.fill(1, 1, total - 1, total - 1, innerColor);
+        // Cut out map area background (draw map on top)
+        context.fill(thickness, thickness, thickness + BASE_MAP, thickness + BASE_MAP, 0xFF000000);
 
         // Map texture
         context.blit(RenderPipelines.GUI_TEXTURED, BetterMapsModClient.currentMapTexture,
@@ -144,27 +144,25 @@ public class MinimapRenderer {
                 0, 0, BASE_MAP, BASE_MAP,
                 MAP_TEX_SIZE, MAP_TEX_SIZE, texColor);
 
-        // Player marker
+        // Player marker — single icon, properly scaled
         if (config.showMarker && smoothMarkerX >= 0 && smoothMarkerY >= 0) {
-            float clampedX = Math.max(0.02f, Math.min(0.98f, smoothMarkerX));
-            float clampedY = Math.max(0.02f, Math.min(0.98f, smoothMarkerY));
-
-            float iconSize = BASE_ICON * mScale;
-            float mx = thickness + clampedX * BASE_MAP - iconSize / 2f;
-            float my = thickness + clampedY * BASE_MAP - iconSize / 2f;
+            float clampedX  = Math.max(0.02f, Math.min(0.98f, smoothMarkerX));
+            float clampedY  = Math.max(0.02f, Math.min(0.98f, smoothMarkerY));
+            float iconSize  = BASE_ICON * mScale;
+            float centerX   = thickness + clampedX * BASE_MAP;
+            float centerY   = thickness + clampedY * BASE_MAP;
 
             Identifier icon = markerOffMap ? PLAYER_OFF_MAP : PLAYER_ICON;
 
             context.pose().pushMatrix();
-            float cx = mx + iconSize / 2f;
-            float cy = my + iconSize / 2f;
-            context.pose().translate(cx, cy);
+            context.pose().translate(centerX, centerY);
             if (!markerOffMap) {
                 context.pose().rotate((float)((smoothMarkerRot + 180.0) * Math.PI / 180.0));
             }
-            context.pose().translate(-iconSize / 2f, -iconSize / 2f);
+            // Blit centered around 0,0 after translate
             context.blit(RenderPipelines.GUI_TEXTURED, icon,
-                    0, 0, 0, 0,
+                    (int)(-iconSize / 2f), (int)(-iconSize / 2f),
+                    0, 0,
                     (int) iconSize, (int) iconSize,
                     ICON_TEX_SIZE, ICON_TEX_SIZE);
             context.pose().popMatrix();
@@ -172,11 +170,19 @@ public class MinimapRenderer {
 
         context.pose().popMatrix();
 
-        // Draw text below minimap outside scaled matrix so font stays crisp
+        // Text below minimap — positioned to always stay aligned with minimap
+        // and scaled with minimap scale so it stays below regardless of position
         int textX     = x;
         int textY     = y + totalSize + 3;
         int textColor = applyAlpha(0xFFFFFFFF, alpha);
-        int shadowCol = applyAlpha(0xFF000000, alpha);
+        int shadowCol = applyAlpha(0xFF303030, alpha);
+
+        // For bottom positions, put text ABOVE the minimap instead
+        boolean isBottom = config.minimapPosition.startsWith("BOTTOM");
+        if (isBottom) {
+            int lineCount = (coordText != null ? 1 : 0) + (biomeText != null ? 1 : 0);
+            textY = y - (lineCount * 10) - 3;
+        }
 
         if (coordText != null) {
             drawTextWithShadow(context, client, coordText, textX, textY, textColor, shadowCol);
@@ -184,10 +190,6 @@ public class MinimapRenderer {
         }
         if (biomeText != null) {
             drawTextWithShadow(context, client, biomeText, textX, textY, textColor, shadowCol);
-            textY += 10;
-        }
-        if (scaleText != null) {
-            drawTextWithShadow(context, client, scaleText, textX, textY, textColor, shadowCol);
         }
     }
 
@@ -199,21 +201,6 @@ public class MinimapRenderer {
 
     private static int applyAlpha(int argbColor, int alpha) {
         return (argbColor & 0x00FFFFFF) | (alpha << 24);
-    }
-
-    private static int lighten(int argb, float amount) {
-        int a = (argb >> 24) & 0xFF;
-        int r = Math.min(255, (int)(((argb >> 16) & 0xFF) + 255 * amount));
-        int g = Math.min(255, (int)(((argb >>  8) & 0xFF) + 255 * amount));
-        int b = Math.min(255, (int)(((argb)       & 0xFF) + 255 * amount));
-        return (a << 24) | (r << 16) | (g << 8) | b;
-    }
-
-    private static int lerpColor(int a, int b, float t) {
-        int aa = (a >> 24) & 0xFF, ar = (a >> 16) & 0xFF, ag = (a >> 8) & 0xFF, ab = a & 0xFF;
-        int ba = (b >> 24) & 0xFF, br = (b >> 16) & 0xFF, bg = (b >> 8) & 0xFF, bb = b & 0xFF;
-        return ((int)(aa + (ba - aa) * t) << 24) | ((int)(ar + (br - ar) * t) << 16)
-                | ((int)(ag + (bg - ag) * t) << 8)  |  (int)(ab + (bb - ab) * t);
     }
 
     public static void reset() {

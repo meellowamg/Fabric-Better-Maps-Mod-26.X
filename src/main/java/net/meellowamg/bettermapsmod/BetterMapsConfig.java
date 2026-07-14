@@ -17,23 +17,19 @@ public class BetterMapsConfig {
             .getConfigDir().resolve("bettermapsmod.json");
 
     // Visual
-    public float minimapScale     = 1.0f;
-    public int   minimapMargin    = 10;
-    public float minimapOpacity   = 1.0f;
-    public String minimapPosition = "TOP_RIGHT";
-    public int   borderColor      = 0xFF222222;
-    public int   borderThickness  = 2;
-    public float markerScale      = 1.0f;
+    public float   minimapScale      = 1.0f;
+    public int     minimapMargin     = 10;
+    public float   minimapOpacity    = 1.0f;
+    public String  minimapPosition   = "TOP_RIGHT";
+    public int     borderOuterColor  = 0xFF222222;
+    public int     borderInnerColor  = 0xFF555555;
+    public int     borderThickness   = 2;
+    public float   markerScale       = 1.0f;
 
     // Functional
-    public boolean showMarker      = true;
-    public boolean showCoordinates = true;
-    public boolean showBiome       = true;
-    public boolean showMapScale    = true;
-
-    // Interaction
-    public String pinMapKey      = "CROUCH_RIGHT_CLICK"; // legacy default
-    public String toggleKey      = "NONE";               // dedicated toggle key
+    public boolean showMarker        = true;
+    public boolean showCoordinates   = true;
+    public boolean showBiome         = true;
 
     private static BetterMapsConfig instance;
 
