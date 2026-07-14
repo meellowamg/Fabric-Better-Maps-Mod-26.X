@@ -176,7 +176,7 @@ public class BetterMapsConfigScreen extends Screen {
                 Component.literal("Toggle Key: set in Controls menu"), btn -> {
                     // Open controls screen
                     this.minecraft.setScreen(
-                            new net.minecraft.client.gui.screens.controls.ControlsScreen(this, this.minecraft.options)
+                            new net.minecraft.client.gui.screens.options.controls.ControlsScreen(this, this.minecraft.options)
                     );
                 }).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
