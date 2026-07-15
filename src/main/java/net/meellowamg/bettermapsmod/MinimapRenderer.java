@@ -16,7 +16,6 @@ public class MinimapRenderer {
     private static final int MAP_TEX_SIZE  = 128;
     private static final int ICON_TEX_SIZE = 8;
     private static final int BASE_MAP      = 128;
-    private static final int BASE_ICON     = 8;
 
     private static final float SMOOTH_SPEED = 0.15f;
     private static final float ROT_SMOOTH   = 0.3f;
@@ -35,14 +34,13 @@ public class MinimapRenderer {
         if (!(contextObj instanceof GuiGraphicsExtractor context)) return;
 
         BetterMapsConfig config = BetterMapsConfig.get();
-        float scale       = config.minimapScale;
-        int   MARGIN      = config.minimapMargin;
-        int   alpha       = (int)(config.minimapOpacity * 255);
-        int   texColor    = (alpha << 24) | 0xFFFFFF;
-        int   thickness   = Math.max(1, config.borderThickness);
-        int   outerColor  = applyAlpha(config.borderOuterColor, alpha);
-        int   innerColor  = applyAlpha(config.borderInnerColor, alpha);
-        float mScale      = config.markerScale;
+        float scale      = config.minimapScale;
+        int   MARGIN     = config.minimapMargin;
+        int   thickness  = Math.max(1, config.borderThickness);
+        int   outerColor = config.borderOuterColor | 0xFF000000;
+        int   innerColor = config.borderInnerColor | 0xFF000000;
+        float mScale     = config.markerScale;
+        float opacity    = config.minimapOpacity;
 
         Minecraft client = Minecraft.getInstance();
         int screenWidth  = client.getWindow().getGuiScaledWidth();
@@ -67,24 +65,19 @@ public class MinimapRenderer {
                 biomeText = biomeHolder.unwrapKey()
                         .map(k -> {
                             String fullName = k.toString();
-                            // Extract path after last '/' and before ']'
-                            // e.g. "ResourceKey[minecraft:worldgen/biome / minecraft:cherry_grove]"
                             int lastSlash   = fullName.lastIndexOf('/');
                             int lastBracket = fullName.lastIndexOf(']');
                             String path = (lastSlash >= 0 && lastBracket > lastSlash)
                                     ? fullName.substring(lastSlash + 1, lastBracket).trim()
                                     : fullName;
-                            // Strip namespace prefix like "minecraft:"
                             int colon = path.indexOf(':');
                             if (colon >= 0) path = path.substring(colon + 1);
-                            // Capitalize words
                             String[] words = path.split("_");
                             StringBuilder sb = new StringBuilder();
                             for (String word : words) {
-                                if (!word.isEmpty()) {
+                                if (!word.isEmpty())
                                     sb.append(Character.toUpperCase(word.charAt(0)))
                                             .append(word.substring(1)).append(" ");
-                                }
                             }
                             return sb.toString().trim();
                         })
@@ -92,7 +85,7 @@ public class MinimapRenderer {
             }
         }
 
-        // Minimap corner position
+        // Corner position
         int x, y;
         switch (config.minimapPosition) {
             case "TOP_LEFT"     -> { x = MARGIN;                            y = MARGIN; }
@@ -126,81 +119,82 @@ public class MinimapRenderer {
         while (rotDiff < -180) rotDiff += 360;
         smoothMarkerRot += rotDiff * ROT_SMOOTH;
 
-        // Render minimap
+        // Draw minimap
         context.pose().pushMatrix();
         context.pose().translate(x, y);
         context.pose().scale(scale, scale);
 
-        // Outer border line
+        // Border - always fully opaque
         context.fill(0, 0, total, total, outerColor);
-        // Inner border fill
         context.fill(1, 1, total - 1, total - 1, innerColor);
-        // Cut out map area background (draw map on top)
         context.fill(thickness, thickness, thickness + BASE_MAP, thickness + BASE_MAP, 0xFF000000);
 
-        // Map texture
+        // Map texture - always draw at full color
         context.blit(RenderPipelines.GUI_TEXTURED, BetterMapsModClient.currentMapTexture,
                 thickness, thickness,
                 0, 0, BASE_MAP, BASE_MAP,
-                MAP_TEX_SIZE, MAP_TEX_SIZE, texColor);
+                MAP_TEX_SIZE, MAP_TEX_SIZE, 0xFFFFFFFF);
 
-        // Player marker — single icon, properly scaled
+        // Opacity overlay — black layer on top with inverse opacity
+        // opacity 1.0 = 0 alpha overlay (fully visible)
+        // opacity 0.0 = 255 alpha overlay (fully black)
+        int overlayAlpha = (int)((1.0f - opacity) * 255);
+        if (overlayAlpha > 0) {
+            context.fill(thickness, thickness,
+                    thickness + BASE_MAP, thickness + BASE_MAP,
+                    (overlayAlpha << 24));
+        }
+
+        // Marker
         if (config.showMarker && smoothMarkerX >= 0 && smoothMarkerY >= 0) {
-            float clampedX  = Math.max(0.02f, Math.min(0.98f, smoothMarkerX));
-            float clampedY  = Math.max(0.02f, Math.min(0.98f, smoothMarkerY));
-            float iconSize  = BASE_ICON * mScale;
-            float centerX   = thickness + clampedX * BASE_MAP;
-            float centerY   = thickness + clampedY * BASE_MAP;
+            float clampedX = Math.max(0.02f, Math.min(0.98f, smoothMarkerX));
+            float clampedY = Math.max(0.02f, Math.min(0.98f, smoothMarkerY));
+
+            float centerX = thickness + clampedX * BASE_MAP;
+            float centerY = thickness + clampedY * BASE_MAP;
 
             Identifier icon = markerOffMap ? PLAYER_OFF_MAP : PLAYER_ICON;
 
             context.pose().pushMatrix();
             context.pose().translate(centerX, centerY);
-            if (!markerOffMap) {
+            if (!markerOffMap)
                 context.pose().rotate((float)((smoothMarkerRot + 180.0) * Math.PI / 180.0));
-            }
-            // Blit centered around 0,0 after translate
+            context.pose().scale(mScale, mScale);
             context.blit(RenderPipelines.GUI_TEXTURED, icon,
-                    (int)(-iconSize / 2f), (int)(-iconSize / 2f),
+                    -4, -4,
                     0, 0,
-                    (int) iconSize, (int) iconSize,
+                    8, 8,
                     ICON_TEX_SIZE, ICON_TEX_SIZE);
             context.pose().popMatrix();
         }
 
         context.pose().popMatrix();
 
-        // Text below minimap — positioned to always stay aligned with minimap
-        // and scaled with minimap scale so it stays below regardless of position
-        int textX     = x;
-        int textY     = y + totalSize + 3;
-        int textColor = applyAlpha(0xFFFFFFFF, alpha);
-        int shadowCol = applyAlpha(0xFF303030, alpha);
+        // Text — scaled with minimap
+        int lineCount = (coordText != null ? 1 : 0) + (biomeText != null ? 1 : 0);
+        if (lineCount > 0) {
+            boolean isBottom  = config.minimapPosition.startsWith("BOTTOM");
+            int     lineHeight = Math.round(10 * scale);
+            int     textStartY = isBottom
+                    ? y - lineCount * lineHeight - 3
+                    : y + totalSize + 3;
 
-        // For bottom positions, put text ABOVE the minimap instead
-        boolean isBottom = config.minimapPosition.startsWith("BOTTOM");
-        if (isBottom) {
-            int lineCount = (coordText != null ? 1 : 0) + (biomeText != null ? 1 : 0);
-            textY = y - (lineCount * 10) - 3;
+            context.pose().pushMatrix();
+            context.pose().translate(x, textStartY);
+            context.pose().scale(scale, scale);
+
+            if (coordText != null) {
+                context.text(client.font, coordText, 1, 1, 0xFF303030, false);
+                context.text(client.font, coordText, 0, 0, 0xFFFFFFFF, false);
+                context.pose().translate(0, 10);
+            }
+            if (biomeText != null) {
+                context.text(client.font, biomeText, 1, 1, 0xFF303030, false);
+                context.text(client.font, biomeText, 0, 0, 0xFFFFFFFF, false);
+            }
+
+            context.pose().popMatrix();
         }
-
-        if (coordText != null) {
-            drawTextWithShadow(context, client, coordText, textX, textY, textColor, shadowCol);
-            textY += 10;
-        }
-        if (biomeText != null) {
-            drawTextWithShadow(context, client, biomeText, textX, textY, textColor, shadowCol);
-        }
-    }
-
-    private static void drawTextWithShadow(GuiGraphicsExtractor context, Minecraft client,
-                                           String text, int x, int y, int color, int shadow) {
-        context.text(client.font, text, x + 1, y + 1, shadow, false);
-        context.text(client.font, text, x, y, color, false);
-    }
-
-    private static int applyAlpha(int argbColor, int alpha) {
-        return (argbColor & 0x00FFFFFF) | (alpha << 24);
     }
 
     public static void reset() {

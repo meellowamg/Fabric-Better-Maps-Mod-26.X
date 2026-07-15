@@ -6,6 +6,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
+import net.minecraft.client.gui.screens.options.controls.ControlsScreen;
 import net.minecraft.network.chat.Component;
 
 public class BetterMapsConfigScreen extends Screen {
@@ -13,14 +14,16 @@ public class BetterMapsConfigScreen extends Screen {
     private final Screen parent;
     private final BetterMapsConfig config;
 
-    // Scrolling
     private int scrollOffset = 0;
     private static final int SCROLL_AMOUNT = 20;
     private int contentHeight = 0;
 
-    // Hex input boxes
     private EditBox outerColorBox;
     private EditBox innerColorBox;
+
+    // Track y positions for color boxes so extractRenderState can draw labels
+    private int outerBoxY = 0;
+    private int innerBoxY = 0;
 
     public BetterMapsConfigScreen(Screen parent) {
         super(Component.literal("Better Maps Settings"));
@@ -37,9 +40,8 @@ public class BetterMapsConfigScreen extends Screen {
         int w       = 200;
         int h       = 20;
 
-        // ---- VISUAL ----
-        // Scale
-        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        // Map Scale
+        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Map Scale: " + String.format("%.1f", config.minimapScale) + "x"),
                 (config.minimapScale - 0.5f) / 2.5f) {
             @Override protected void updateMessage() {
@@ -53,7 +55,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // Opacity
-        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Opacity: " + Math.round(config.minimapOpacity * 100) + "%"),
                 config.minimapOpacity) {
             @Override protected void updateMessage() {
@@ -66,7 +68,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // Margin
-        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Margin: " + config.minimapMargin),
                 config.minimapMargin / 50.0) {
             @Override protected void updateMessage() {
@@ -78,8 +80,8 @@ public class BetterMapsConfigScreen extends Screen {
         });
         y += spacing;
 
-        // Border thickness
-        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        // Border Thickness
+        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Border Thickness: " + config.borderThickness),
                 (config.borderThickness - 1) / 9.0) {
             @Override protected void updateMessage() {
@@ -91,34 +93,37 @@ public class BetterMapsConfigScreen extends Screen {
         });
         y += spacing;
 
-        // Outer border color hex
-        outerColorBox = new EditBox(this.font, cx - w / 2, y, w, h,
-                Component.literal("Outer Border Color"));
-        outerColorBox.setMaxLength(8);
+        // Outer border color box — right side, label drawn in extractRenderState
+        outerBoxY = y;
+        int boxW = 80;
+        outerColorBox = new EditBox(this.font, cx + 10, y, boxW, h, Component.literal("Outer Color"));
+        outerColorBox.setMaxLength(6);
         outerColorBox.setValue(String.format("%06X", config.borderOuterColor & 0xFFFFFF));
         outerColorBox.setResponder(val -> {
             try {
-                config.borderOuterColor = (int)(0xFF000000L | Long.parseLong(val, 16));
+                if (val.length() == 6)
+                    config.borderOuterColor = (int)(0xFF000000L | Long.parseLong(val, 16));
             } catch (NumberFormatException ignored) {}
         });
-        addWidget(outerColorBox);
+        this.addRenderableWidget(outerColorBox);
         y += spacing;
 
-        // Inner border color hex
-        innerColorBox = new EditBox(this.font, cx - w / 2, y, w, h,
-                Component.literal("Inner Border Color"));
-        innerColorBox.setMaxLength(8);
+        // Inner border color box
+        innerBoxY = y;
+        innerColorBox = new EditBox(this.font, cx + 10, y, boxW, h, Component.literal("Inner Color"));
+        innerColorBox.setMaxLength(6);
         innerColorBox.setValue(String.format("%06X", config.borderInnerColor & 0xFFFFFF));
         innerColorBox.setResponder(val -> {
             try {
-                config.borderInnerColor = (int)(0xFF000000L | Long.parseLong(val, 16));
+                if (val.length() == 6)
+                    config.borderInnerColor = (int)(0xFF000000L | Long.parseLong(val, 16));
             } catch (NumberFormatException ignored) {}
         });
-        addWidget(innerColorBox);
+        this.addRenderableWidget(innerColorBox);
         y += spacing;
 
-        // Marker size
-        addWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
+        // Marker Size
+        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Marker Size: " + String.format("%.1f", config.markerScale) + "x"),
                 (config.markerScale - 0.5f) / 1.5f) {
             @Override protected void updateMessage() {
@@ -131,65 +136,68 @@ public class BetterMapsConfigScreen extends Screen {
         });
         y += spacing;
 
-        // Position
-        addWidget(CycleButton.<String>builder(
-                        s -> Component.literal("Position: " + s),
-                        config.minimapPosition)
-                .withValues("TOP_RIGHT", "TOP_LEFT", "BOTTOM_RIGHT", "BOTTOM_LEFT")
-                .create(cx - w / 2, y, w, h,
-                        Component.literal("Position"),
-                        (btn, val) -> config.minimapPosition = val));
+        // Position — use Button instead of CycleButton to avoid double label issue
+        final String[] positions = {"TOP_RIGHT", "TOP_LEFT", "BOTTOM_RIGHT", "BOTTOM_LEFT"};
+        final int[] posIdx = {0};
+        for (int i = 0; i < positions.length; i++) {
+            if (positions[i].equals(config.minimapPosition)) { posIdx[0] = i; break; }
+        }
+        Button[] posBtn = new Button[1];
+        posBtn[0] = Button.builder(
+                Component.literal("Position: " + config.minimapPosition), btn -> {
+                    posIdx[0] = (posIdx[0] + 1) % positions.length;
+                    config.minimapPosition = positions[posIdx[0]];
+                    btn.setMessage(Component.literal("Position: " + config.minimapPosition));
+                }).bounds(cx - w / 2, y, w, h).build();
+        this.addRenderableWidget(posBtn[0]);
         y += spacing;
 
-        // ---- FUNCTIONAL ----
-        addWidget(CycleButton.<Boolean>builder(
-                        b -> Component.literal("Show Marker: " + (b ? "ON" : "OFF")),
-                        config.showMarker)
-                .withValues(true, false)
-                .create(cx - w / 2, y, w, h,
-                        Component.literal("Show Marker"),
-                        (btn, val) -> config.showMarker = val));
+        // Show Marker — Button toggle
+        Button[] markerBtn = new Button[1];
+        markerBtn[0] = Button.builder(
+                Component.literal("Show Marker: " + (config.showMarker ? "ON" : "OFF")), btn -> {
+                    config.showMarker = !config.showMarker;
+                    btn.setMessage(Component.literal("Show Marker: " + (config.showMarker ? "ON" : "OFF")));
+                }).bounds(cx - w / 2, y, w, h).build();
+        this.addRenderableWidget(markerBtn[0]);
         y += spacing;
 
-        addWidget(CycleButton.<Boolean>builder(
-                        b -> Component.literal("Show Coordinates: " + (b ? "ON" : "OFF")),
-                        config.showCoordinates)
-                .withValues(true, false)
-                .create(cx - w / 2, y, w, h,
-                        Component.literal("Show Coordinates"),
-                        (btn, val) -> config.showCoordinates = val));
+        // Show Coordinates — Button toggle
+        Button[] coordBtn = new Button[1];
+        coordBtn[0] = Button.builder(
+                Component.literal("Show Coordinates: " + (config.showCoordinates ? "ON" : "OFF")), btn -> {
+                    config.showCoordinates = !config.showCoordinates;
+                    btn.setMessage(Component.literal("Show Coordinates: " + (config.showCoordinates ? "ON" : "OFF")));
+                }).bounds(cx - w / 2, y, w, h).build();
+        this.addRenderableWidget(coordBtn[0]);
         y += spacing;
 
-        addWidget(CycleButton.<Boolean>builder(
-                        b -> Component.literal("Show Biome: " + (b ? "ON" : "OFF")),
-                        config.showBiome)
-                .withValues(true, false)
-                .create(cx - w / 2, y, w, h,
-                        Component.literal("Show Biome"),
-                        (btn, val) -> config.showBiome = val));
+        // Show Biome — Button toggle
+        Button[] biomeBtn = new Button[1];
+        biomeBtn[0] = Button.builder(
+                Component.literal("Show Biome: " + (config.showBiome ? "ON" : "OFF")), btn -> {
+                    config.showBiome = !config.showBiome;
+                    btn.setMessage(Component.literal("Show Biome: " + (config.showBiome ? "ON" : "OFF")));
+                }).bounds(cx - w / 2, y, w, h).build();
+        this.addRenderableWidget(biomeBtn[0]);
         y += spacing;
 
-        // ---- KEYBIND INFO ----
-        // Keybind is set in Minecraft Controls menu, just show info
-        y += 4;
-        addWidget(Button.builder(
-                Component.literal("Toggle Key: set in Controls menu"), btn -> {
-                    // Open controls screen
-                    this.minecraft.setScreen(
-                            new net.minecraft.client.gui.screens.options.controls.ControlsScreen(this, this.minecraft.options)
-                    );
-                }).bounds(cx - w / 2, y, w, h).build());
+        // Toggle Key
+        this.addRenderableWidget(Button.builder(
+                Component.literal("Set Toggle Key (Controls menu)"), btn ->
+                        this.minecraft.setScreen(new ControlsScreen(this, this.minecraft.options))
+        ).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
 
-        // Stats button
-        addWidget(Button.builder(
-                Component.literal("View Stats →"), btn ->
+        // View Stats
+        this.addRenderableWidget(Button.builder(
+                Component.literal("View Stats \u2192"), btn ->
                         this.minecraft.setScreen(new BetterMapsStatsScreen(this))
         ).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
 
         // Done
-        addWidget(Button.builder(
+        this.addRenderableWidget(Button.builder(
                 Component.literal("Done"), btn -> {
                     BetterMapsConfig.save();
                     this.minecraft.setScreen(parent);
@@ -197,11 +205,6 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         contentHeight = y + scrollOffset + 10;
-    }
-
-    private void addWidget(net.minecraft.client.gui.components.AbstractWidget widget) {
-        // Only add if visible on screen
-        this.addRenderableWidget(widget);
     }
 
     @Override
@@ -215,18 +218,37 @@ public class BetterMapsConfigScreen extends Screen {
     @Override
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
-        // Title
-        graphics.text(this.font, this.title, this.width / 2, 8, 0xFFFFFF, true);
-        // Section headers
-        int cx = this.width / 2;
-        int baseY = 30 - scrollOffset;
+
+        int cx      = this.width / 2;
+        int baseY   = 30 - scrollOffset;
         int spacing = 26;
-        graphics.text(this.font, "-- Visual --",       cx - 100, baseY - 14,          0xAAAAAA, false);
-        graphics.text(this.font, "-- Functional --",   cx - 100, baseY + spacing * 8 - 14,  0xAAAAAA, false);
-        graphics.text(this.font, "-- Interaction --",  cx - 100, baseY + spacing * 11 - 14, 0xAAAAAA, false);
-        // Hex field labels
-        graphics.text(this.font, "Outer Border Color (hex):", cx - 100, baseY + spacing * 4 - 12, 0xCCCCCC, false);
-        graphics.text(this.font, "Inner Border Color (hex):", cx - 100, baseY + spacing * 5 - 12, 0xCCCCCC, false);
+
+        graphics.text(this.font, "Better Maps Settings", cx, 8, 0xFFFFFF, true);
+
+        // Section headers
+        graphics.text(this.font, "\u2500 Visual \u2500",      cx - 100, baseY - 12,                0xAAAAAA, false);
+        graphics.text(this.font, "\u2500 Functional \u2500",  cx - 100, baseY + spacing * 7 - 12,  0xAAAAAA, false);
+        graphics.text(this.font, "\u2500 Interaction \u2500", cx - 100, baseY + spacing * 10 - 12, 0xAAAAAA, false);
+
+        // Color labels drawn inline to the left of the boxes
+        if (outerBoxY > 0) {
+            graphics.text(this.font, "Outer Border:", cx - 100, outerBoxY + 5, 0xCCCCCC, false);
+            graphics.text(this.font, "Inner Border:", cx - 100, innerBoxY + 5, 0xCCCCCC, false);
+
+            // Color preview square - small box right after the text input
+            int previewX = cx + 94;
+            int previewSize = 20;
+            // Outer preview
+            graphics.fill(previewX, outerBoxY, previewX + previewSize, outerBoxY + previewSize,
+                    0xFF000000); // black border
+            graphics.fill(previewX + 1, outerBoxY + 1, previewX + previewSize - 1, outerBoxY + previewSize - 1,
+                    config.borderOuterColor | 0xFF000000);
+            // Inner preview
+            graphics.fill(previewX, innerBoxY, previewX + previewSize, innerBoxY + previewSize,
+                    0xFF000000);
+            graphics.fill(previewX + 1, innerBoxY + 1, previewX + previewSize - 1, innerBoxY + previewSize - 1,
+                    config.borderInnerColor | 0xFF000000);
+        }
     }
 
     @Override

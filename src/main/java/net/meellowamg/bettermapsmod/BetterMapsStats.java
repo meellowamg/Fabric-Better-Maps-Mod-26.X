@@ -18,127 +18,130 @@ public class BetterMapsStats {
     private static final Path STATS_PATH = FabricLoader.getInstance()
             .getConfigDir().resolve("bettermapsmod_stats.json");
 
-    public int    mapsPinned       = 0;
-    public long   distanceTracked  = 0; // in blocks
-    public long   timeWithMinimap  = 0; // in ticks
-    public int    mapsExplored     = 0;
-    public Set<String> uniqueMapIds   = new HashSet<>();
-    public Set<String> biomesVisited  = new HashSet<>();
+    // All public so Gson can serialize/deserialize
+    public int    mapsPinned      = 0;
+    public long   distanceTracked = 0;
+    public long   timeWithMinimap = 0;
+    public int    mapsExplored    = 0;
+    public Set<String> uniqueMapIds  = new HashSet<>();
+    public Set<String> biomesVisited = new HashSet<>();
 
-    private static BetterMapsStats instance;
+    // Single static instance — never null after load()
+    private static BetterMapsStats INSTANCE = new BetterMapsStats();
 
-    // Tracking helpers (not saved)
-    private static double lastX = 0, lastZ = 0;
-    private static boolean positionInitialized = false;
+    // Position tracking — not saved
+    private static double lastX            = 0;
+    private static double lastZ            = 0;
+    private static boolean posInitialized  = false;
+    private static int     tickCounter     = 0;
 
     public static BetterMapsStats get() {
-        if (instance == null) load();
-        return instance;
+        return INSTANCE;
     }
 
     public static void load() {
         if (Files.exists(STATS_PATH)) {
             try (Reader reader = Files.newBufferedReader(STATS_PATH)) {
-                instance = GSON.fromJson(reader, BetterMapsStats.class);
-                if (instance == null) instance = new BetterMapsStats();
-                if (instance.uniqueMapIds == null) instance.uniqueMapIds = new HashSet<>();
-                if (instance.biomesVisited == null) instance.biomesVisited = new HashSet<>();
+                BetterMapsStats loaded = GSON.fromJson(reader, BetterMapsStats.class);
+                if (loaded != null) {
+                    INSTANCE = loaded;
+                    if (INSTANCE.uniqueMapIds  == null) INSTANCE.uniqueMapIds  = new HashSet<>();
+                    if (INSTANCE.biomesVisited == null) INSTANCE.biomesVisited = new HashSet<>();
+                    BetterMapsMod.LOGGER.info("Stats loaded: mapsPinned=" + INSTANCE.mapsPinned
+                            + " distance=" + INSTANCE.distanceTracked
+                            + " biomes=" + INSTANCE.biomesVisited.size());
+                }
             } catch (IOException e) {
-                BetterMapsMod.LOGGER.error("Failed to load stats", e);
-                instance = new BetterMapsStats();
+                BetterMapsMod.LOGGER.error("Failed to load stats: " + e.getMessage());
             }
         } else {
-            instance = new BetterMapsStats();
-            save();
+            BetterMapsMod.LOGGER.info("No stats file found, starting fresh at " + STATS_PATH);
         }
     }
 
     public static void save() {
         try (Writer writer = Files.newBufferedWriter(STATS_PATH)) {
-            GSON.toJson(instance, writer);
+            GSON.toJson(INSTANCE, writer);
         } catch (IOException e) {
-            BetterMapsMod.LOGGER.error("Failed to save stats", e);
+            BetterMapsMod.LOGGER.error("Failed to save stats: " + e.getMessage());
         }
     }
 
     public static void reset() {
-        positionInitialized = false;
+        posInitialized = false;
+        tickCounter    = 0;
     }
 
     public static void onMapPinned(int mapId) {
-        BetterMapsStats stats = get();
-        stats.mapsPinned++;
-        String key = String.valueOf(mapId);
-        if (stats.uniqueMapIds.add(key)) {
-            stats.mapsExplored++;
+        INSTANCE.mapsPinned++;
+        if (INSTANCE.uniqueMapIds.add(String.valueOf(mapId))) {
+            INSTANCE.mapsExplored++;
         }
         save();
+        BetterMapsMod.LOGGER.info("Map pinned! Total: " + INSTANCE.mapsPinned);
     }
 
     public static void tick(net.minecraft.client.Minecraft client) {
         if (!BetterMapsModClient.minimapEnabled) {
-            positionInitialized = false;
+            posInitialized = false;
             return;
         }
-        if (client.player == null) return;
+        if (client.player == null || client.level == null) return;
 
-        BetterMapsStats stats = get();
+        // Time
+        INSTANCE.timeWithMinimap++;
+        tickCounter++;
 
-        // Time tracking
-        stats.timeWithMinimap++;
-
-        // Distance tracking
+        // Distance
         double px = client.player.getX();
         double pz = client.player.getZ();
-        if (positionInitialized) {
-            double dx = px - lastX;
-            double dz = pz - lastZ;
+        if (posInitialized) {
+            double dx   = px - lastX;
+            double dz   = pz - lastZ;
             double dist = Math.sqrt(dx * dx + dz * dz);
-            if (dist < 10) { // ignore teleports
-                stats.distanceTracked += (long) dist;
+            if (dist < 10.0) {
+                INSTANCE.distanceTracked += (long) dist;
             }
         }
-        lastX = px;
-        lastZ = pz;
-        positionInitialized = true;
+        lastX          = px;
+        lastZ          = pz;
+        posInitialized = true;
 
-        // Biome tracking
-        if (client.level != null) {
-            var biomeHolder = client.level.getBiome(client.player.blockPosition());
-            biomeHolder.unwrapKey().ifPresent(k -> {
-                String name = k.toString();
-                int lastSlash = name.lastIndexOf('/');
-                int lastBracket = name.lastIndexOf(']');
-                if (lastSlash >= 0 && lastBracket > lastSlash) {
-                    String path = name.substring(lastSlash + 1, lastBracket).trim();
-                    int colon = path.indexOf(':');
-                    if (colon >= 0) path = path.substring(colon + 1);
-                    if (stats.biomesVisited.add(path)) {
-                        save(); // save when new biome discovered
-                    }
-                }
-            });
-        }
+        // Biome
+        var biomeHolder = client.level.getBiome(client.player.blockPosition());
+        biomeHolder.unwrapKey().ifPresent(k -> {
+            String full     = k.toString();
+            int lastSlash   = full.lastIndexOf('/');
+            int lastBracket = full.lastIndexOf(']');
+            String path     = (lastSlash >= 0 && lastBracket > lastSlash)
+                    ? full.substring(lastSlash + 1, lastBracket).trim() : full;
+            int colon = path.indexOf(':');
+            if (colon >= 0) path = path.substring(colon + 1);
+            if (INSTANCE.biomesVisited.add(path)) {
+                BetterMapsMod.LOGGER.info("New biome discovered: " + path
+                        + " (total: " + INSTANCE.biomesVisited.size() + ")");
+                save();
+            }
+        });
 
-        // Save every 20 ticks (1 second)
-        if (stats.timeWithMinimap % 20 == 0) {
+        // Save every 5 seconds
+        if (tickCounter % 100 == 0) {
             save();
         }
     }
 
     public String getFormattedTime() {
-        long ticks = get().timeWithMinimap;
-        long seconds = ticks / 20;
-        long minutes = seconds / 60;
-        long hours   = minutes / 60;
-        if (hours > 0)   return hours + "h " + (minutes % 60) + "m";
-        if (minutes > 0) return minutes + "m " + (seconds % 60) + "s";
-        return seconds + "s";
+        long secs  = INSTANCE.timeWithMinimap / 20;
+        long mins  = secs / 60;
+        long hours = mins / 60;
+        if (hours > 0)  return hours + "h " + (mins % 60) + "m";
+        if (mins  > 0)  return mins  + "m " + (secs % 60) + "s";
+        return secs + "s";
     }
 
     public String getFormattedDistance() {
-        long blocks = get().distanceTracked;
-        if (blocks >= 1000) return String.format("%.1fk blocks", blocks / 1000.0);
-        return blocks + " blocks";
+        long b = INSTANCE.distanceTracked;
+        if (b >= 1000) return String.format("%.1fk blocks", b / 1000.0);
+        return b + " blocks";
     }
 }
