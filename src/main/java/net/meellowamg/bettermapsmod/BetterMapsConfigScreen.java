@@ -181,6 +181,13 @@ public class BetterMapsConfigScreen extends Screen {
                 }).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
 
+        // Stats button
+        addWidget(Button.builder(
+                Component.literal("View Stats →"), btn ->
+                        this.minecraft.setScreen(new BetterMapsStatsScreen(this))
+        ).bounds(cx - w / 2, y, w, h).build());
+        y += spacing;
+
         // Done
         addWidget(Button.builder(
                 Component.literal("Done"), btn -> {
