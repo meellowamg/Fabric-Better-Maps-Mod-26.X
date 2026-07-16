@@ -3,7 +3,6 @@ package net.meellowamg.bettermapsmod;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
-import net.minecraft.client.gui.components.CycleButton;
 import net.minecraft.client.gui.components.EditBox;
 import net.minecraft.client.gui.screens.Screen;
 import net.minecraft.client.gui.screens.options.controls.ControlsScreen;
@@ -20,8 +19,6 @@ public class BetterMapsConfigScreen extends Screen {
 
     private EditBox outerColorBox;
     private EditBox innerColorBox;
-
-    // Track y positions for color boxes so extractRenderState can draw labels
     private int outerBoxY = 0;
     private int innerBoxY = 0;
 
@@ -93,10 +90,12 @@ public class BetterMapsConfigScreen extends Screen {
         });
         y += spacing;
 
-        // Outer border color box — right side, label drawn in extractRenderState
+        // Outer border color
+        // Label is drawn in extractRenderState above the box
+        y += 12; // space for label
         outerBoxY = y;
-        int boxW = 80;
-        outerColorBox = new EditBox(this.font, cx + 10, y, boxW, h, Component.literal("Outer Color"));
+        outerColorBox = new EditBox(this.font, cx - w / 2, y, w - 26, h,
+                Component.literal("Outer Color"));
         outerColorBox.setMaxLength(6);
         outerColorBox.setValue(String.format("%06X", config.borderOuterColor & 0xFFFFFF));
         outerColorBox.setResponder(val -> {
@@ -108,9 +107,11 @@ public class BetterMapsConfigScreen extends Screen {
         this.addRenderableWidget(outerColorBox);
         y += spacing;
 
-        // Inner border color box
+        // Inner border color
+        y += 12;
         innerBoxY = y;
-        innerColorBox = new EditBox(this.font, cx + 10, y, boxW, h, Component.literal("Inner Color"));
+        innerColorBox = new EditBox(this.font, cx - w / 2, y, w - 26, h,
+                Component.literal("Inner Color"));
         innerColorBox.setMaxLength(6);
         innerColorBox.setValue(String.format("%06X", config.borderInnerColor & 0xFFFFFF));
         innerColorBox.setResponder(val -> {
@@ -136,12 +137,11 @@ public class BetterMapsConfigScreen extends Screen {
         });
         y += spacing;
 
-        // Position — use Button instead of CycleButton to avoid double label issue
+        // Position
         final String[] positions = {"TOP_RIGHT", "TOP_LEFT", "BOTTOM_RIGHT", "BOTTOM_LEFT"};
         final int[] posIdx = {0};
-        for (int i = 0; i < positions.length; i++) {
+        for (int i = 0; i < positions.length; i++)
             if (positions[i].equals(config.minimapPosition)) { posIdx[0] = i; break; }
-        }
         Button[] posBtn = new Button[1];
         posBtn[0] = Button.builder(
                 Component.literal("Position: " + config.minimapPosition), btn -> {
@@ -152,7 +152,7 @@ public class BetterMapsConfigScreen extends Screen {
         this.addRenderableWidget(posBtn[0]);
         y += spacing;
 
-        // Show Marker — Button toggle
+        // Show Marker
         Button[] markerBtn = new Button[1];
         markerBtn[0] = Button.builder(
                 Component.literal("Show Marker: " + (config.showMarker ? "ON" : "OFF")), btn -> {
@@ -162,7 +162,7 @@ public class BetterMapsConfigScreen extends Screen {
         this.addRenderableWidget(markerBtn[0]);
         y += spacing;
 
-        // Show Coordinates — Button toggle
+        // Show Coordinates
         Button[] coordBtn = new Button[1];
         coordBtn[0] = Button.builder(
                 Component.literal("Show Coordinates: " + (config.showCoordinates ? "ON" : "OFF")), btn -> {
@@ -172,7 +172,7 @@ public class BetterMapsConfigScreen extends Screen {
         this.addRenderableWidget(coordBtn[0]);
         y += spacing;
 
-        // Show Biome — Button toggle
+        // Show Biome
         Button[] biomeBtn = new Button[1];
         biomeBtn[0] = Button.builder(
                 Component.literal("Show Biome: " + (config.showBiome ? "ON" : "OFF")), btn -> {
@@ -186,13 +186,6 @@ public class BetterMapsConfigScreen extends Screen {
         this.addRenderableWidget(Button.builder(
                 Component.literal("Set Toggle Key (Controls menu)"), btn ->
                         this.minecraft.setScreen(new ControlsScreen(this, this.minecraft.options))
-        ).bounds(cx - w / 2, y, w, h).build());
-        y += spacing;
-
-        // View Stats
-        this.addRenderableWidget(Button.builder(
-                Component.literal("View Stats \u2192"), btn ->
-                        this.minecraft.setScreen(new BetterMapsStatsScreen(this))
         ).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
 
@@ -210,7 +203,7 @@ public class BetterMapsConfigScreen extends Screen {
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
         int maxScroll = Math.max(0, contentHeight - this.height);
-        scrollOffset = (int) Math.max(0, Math.min(maxScroll, scrollOffset - scrollY * SCROLL_AMOUNT));
+        scrollOffset  = (int) Math.max(0, Math.min(maxScroll, scrollOffset - scrollY * SCROLL_AMOUNT));
         this.init();
         return true;
     }
@@ -219,34 +212,30 @@ public class BetterMapsConfigScreen extends Screen {
     public void extractRenderState(GuiGraphicsExtractor graphics, int mouseX, int mouseY, float delta) {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
-        int cx      = this.width / 2;
-        int baseY   = 30 - scrollOffset;
-        int spacing = 26;
+        int cx = this.width / 2;
 
         graphics.text(this.font, "Better Maps Settings", cx, 8, 0xFFFFFF, true);
 
-        // Section headers
-        graphics.text(this.font, "\u2500 Visual \u2500",      cx - 100, baseY - 12,                0xAAAAAA, false);
-        graphics.text(this.font, "\u2500 Functional \u2500",  cx - 100, baseY + spacing * 7 - 12,  0xAAAAAA, false);
-        graphics.text(this.font, "\u2500 Interaction \u2500", cx - 100, baseY + spacing * 10 - 12, 0xAAAAAA, false);
-
-        // Color labels drawn inline to the left of the boxes
+        // Labels above color boxes
         if (outerBoxY > 0) {
-            graphics.text(this.font, "Outer Border:", cx - 100, outerBoxY + 5, 0xCCCCCC, false);
-            graphics.text(this.font, "Inner Border:", cx - 100, innerBoxY + 5, 0xCCCCCC, false);
+            // Labels sitting just above their boxes
+            graphics.text(this.font, "Outer Border Color (hex):",
+                    cx - 100, outerBoxY - 10, 0xCCCCCC, false);
+            graphics.text(this.font, "Inner Border Color (hex):",
+                    cx - 100, innerBoxY - 10, 0xCCCCCC, false);
 
-            // Color preview square - small box right after the text input
-            int previewX = cx + 94;
-            int previewSize = 20;
-            // Outer preview
-            graphics.fill(previewX, outerBoxY, previewX + previewSize, outerBoxY + previewSize,
-                    0xFF000000); // black border
-            graphics.fill(previewX + 1, outerBoxY + 1, previewX + previewSize - 1, outerBoxY + previewSize - 1,
+            // Color preview squares — right of each box
+            int previewX = cx + 78;
+            int previewY1 = outerBoxY;
+            int previewY2 = innerBoxY;
+            int ps = 20;
+
+            graphics.fill(previewX, previewY1, previewX + ps, previewY1 + ps, 0xFF000000);
+            graphics.fill(previewX + 1, previewY1 + 1, previewX + ps - 1, previewY1 + ps - 1,
                     config.borderOuterColor | 0xFF000000);
-            // Inner preview
-            graphics.fill(previewX, innerBoxY, previewX + previewSize, innerBoxY + previewSize,
-                    0xFF000000);
-            graphics.fill(previewX + 1, innerBoxY + 1, previewX + previewSize - 1, innerBoxY + previewSize - 1,
+
+            graphics.fill(previewX, previewY2, previewX + ps, previewY2 + ps, 0xFF000000);
+            graphics.fill(previewX + 1, previewY2 + 1, previewX + ps - 1, previewY2 + ps - 1,
                     config.borderInnerColor | 0xFF000000);
         }
     }

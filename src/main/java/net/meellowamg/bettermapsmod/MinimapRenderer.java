@@ -33,14 +33,22 @@ public class MinimapRenderer {
         if (BetterMapsModClient.currentMapTexture == null) return;
         if (!(contextObj instanceof GuiGraphicsExtractor context)) return;
 
-        BetterMapsConfig config = BetterMapsConfig.get();
+        BetterMapsConfig config  = BetterMapsConfig.get();
         float scale      = config.minimapScale;
         int   MARGIN     = config.minimapMargin;
         int   thickness  = Math.max(1, config.borderThickness);
         int   outerColor = config.borderOuterColor | 0xFF000000;
         int   innerColor = config.borderInnerColor | 0xFF000000;
         float mScale     = config.markerScale;
-        float opacity    = config.minimapOpacity;
+        float opacity    = Math.max(0f, Math.min(1f, config.minimapOpacity));
+        int   alphaInt   = Math.max(1, (int)(opacity * 255));
+
+        // Premultiplied ARGB color — multiply RGB by alpha fraction too
+        // This is required for GUI_TEXTURED_PREMULTIPLIED_ALPHA pipeline
+        int r = (int)(0xFF * opacity);
+        int g = (int)(0xFF * opacity);
+        int b = (int)(0xFF * opacity);
+        int premultTexColor = (alphaInt << 24) | (r << 16) | (g << 8) | b;
 
         Minecraft client = Minecraft.getInstance();
         int screenWidth  = client.getWindow().getGuiScaledWidth();
@@ -74,11 +82,10 @@ public class MinimapRenderer {
                             if (colon >= 0) path = path.substring(colon + 1);
                             String[] words = path.split("_");
                             StringBuilder sb = new StringBuilder();
-                            for (String word : words) {
+                            for (String word : words)
                                 if (!word.isEmpty())
                                     sb.append(Character.toUpperCase(word.charAt(0)))
                                             .append(word.substring(1)).append(" ");
-                            }
                             return sb.toString().trim();
                         })
                         .orElse("Unknown");
@@ -119,39 +126,30 @@ public class MinimapRenderer {
         while (rotDiff < -180) rotDiff += 360;
         smoothMarkerRot += rotDiff * ROT_SMOOTH;
 
-        // Draw minimap
         context.pose().pushMatrix();
         context.pose().translate(x, y);
         context.pose().scale(scale, scale);
 
-        // Border - always fully opaque
+        // Border always fully opaque
         context.fill(0, 0, total, total, outerColor);
         context.fill(1, 1, total - 1, total - 1, innerColor);
-        context.fill(thickness, thickness, thickness + BASE_MAP, thickness + BASE_MAP, 0xFF000000);
+        context.fill(thickness, thickness,
+                thickness + BASE_MAP, thickness + BASE_MAP, 0xFF000000);
 
-        // Map texture - always draw at full color
-        context.blit(RenderPipelines.GUI_TEXTURED, BetterMapsModClient.currentMapTexture,
+        // Map texture with premultiplied alpha for correct transparency
+        context.blit(RenderPipelines.GUI_TEXTURED_PREMULTIPLIED_ALPHA,
+                BetterMapsModClient.currentMapTexture,
                 thickness, thickness,
                 0, 0, BASE_MAP, BASE_MAP,
-                MAP_TEX_SIZE, MAP_TEX_SIZE, 0xFFFFFFFF);
-
-        // Opacity overlay — black layer on top with inverse opacity
-        // opacity 1.0 = 0 alpha overlay (fully visible)
-        // opacity 0.0 = 255 alpha overlay (fully black)
-        int overlayAlpha = (int)((1.0f - opacity) * 255);
-        if (overlayAlpha > 0) {
-            context.fill(thickness, thickness,
-                    thickness + BASE_MAP, thickness + BASE_MAP,
-                    (overlayAlpha << 24));
-        }
+                MAP_TEX_SIZE, MAP_TEX_SIZE,
+                premultTexColor);
 
         // Marker
         if (config.showMarker && smoothMarkerX >= 0 && smoothMarkerY >= 0) {
             float clampedX = Math.max(0.02f, Math.min(0.98f, smoothMarkerX));
             float clampedY = Math.max(0.02f, Math.min(0.98f, smoothMarkerY));
-
-            float centerX = thickness + clampedX * BASE_MAP;
-            float centerY = thickness + clampedY * BASE_MAP;
+            float centerX  = thickness + clampedX * BASE_MAP;
+            float centerY  = thickness + clampedY * BASE_MAP;
 
             Identifier icon = markerOffMap ? PLAYER_OFF_MAP : PLAYER_ICON;
 
@@ -161,19 +159,16 @@ public class MinimapRenderer {
                 context.pose().rotate((float)((smoothMarkerRot + 180.0) * Math.PI / 180.0));
             context.pose().scale(mScale, mScale);
             context.blit(RenderPipelines.GUI_TEXTURED, icon,
-                    -4, -4,
-                    0, 0,
-                    8, 8,
-                    ICON_TEX_SIZE, ICON_TEX_SIZE);
+                    -4, -4, 0, 0, 8, 8, ICON_TEX_SIZE, ICON_TEX_SIZE);
             context.pose().popMatrix();
         }
 
         context.pose().popMatrix();
 
-        // Text — scaled with minimap
+        // Text scaled with minimap
         int lineCount = (coordText != null ? 1 : 0) + (biomeText != null ? 1 : 0);
         if (lineCount > 0) {
-            boolean isBottom  = config.minimapPosition.startsWith("BOTTOM");
+            boolean isBottom   = config.minimapPosition.startsWith("BOTTOM");
             int     lineHeight = Math.round(10 * scale);
             int     textStartY = isBottom
                     ? y - lineCount * lineHeight - 3
