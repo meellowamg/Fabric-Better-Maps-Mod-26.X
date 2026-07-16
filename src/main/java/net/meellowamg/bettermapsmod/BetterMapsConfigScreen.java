@@ -51,19 +51,6 @@ public class BetterMapsConfigScreen extends Screen {
         });
         y += spacing;
 
-        // Opacity
-        this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
-                Component.literal("Opacity: " + Math.round(config.minimapOpacity * 100) + "%"),
-                config.minimapOpacity) {
-            @Override protected void updateMessage() {
-                setMessage(Component.literal("Opacity: " + Math.round(this.value * 100) + "%"));
-            }
-            @Override protected void applyValue() {
-                config.minimapOpacity = (float) Math.max(0.1, this.value);
-            }
-        });
-        y += spacing;
-
         // Margin
         this.addRenderableWidget(new AbstractSliderButton(cx - w / 2, y, w, h,
                 Component.literal("Margin: " + config.minimapMargin),
@@ -91,8 +78,7 @@ public class BetterMapsConfigScreen extends Screen {
         y += spacing;
 
         // Outer border color
-        // Label is drawn in extractRenderState above the box
-        y += 12; // space for label
+        y += 12;
         outerBoxY = y;
         outerColorBox = new EditBox(this.font, cx - w / 2, y, w - 26, h,
                 Component.literal("Outer Color"));
@@ -213,29 +199,23 @@ public class BetterMapsConfigScreen extends Screen {
         super.extractRenderState(graphics, mouseX, mouseY, delta);
 
         int cx = this.width / 2;
-
         graphics.text(this.font, "Better Maps Settings", cx, 8, 0xFFFFFF, true);
 
-        // Labels above color boxes
         if (outerBoxY > 0) {
-            // Labels sitting just above their boxes
-            graphics.text(this.font, "Outer Border Color (hex):",
+            graphics.text(this.font, "Outer Border Color:",
                     cx - 100, outerBoxY - 10, 0xCCCCCC, false);
-            graphics.text(this.font, "Inner Border Color (hex):",
+            graphics.text(this.font, "Inner Border Color:",
                     cx - 100, innerBoxY - 10, 0xCCCCCC, false);
 
-            // Color preview squares — right of each box
             int previewX = cx + 78;
-            int previewY1 = outerBoxY;
-            int previewY2 = innerBoxY;
             int ps = 20;
 
-            graphics.fill(previewX, previewY1, previewX + ps, previewY1 + ps, 0xFF000000);
-            graphics.fill(previewX + 1, previewY1 + 1, previewX + ps - 1, previewY1 + ps - 1,
+            graphics.fill(previewX, outerBoxY, previewX + ps, outerBoxY + ps, 0xFF000000);
+            graphics.fill(previewX + 1, outerBoxY + 1, previewX + ps - 1, outerBoxY + ps - 1,
                     config.borderOuterColor | 0xFF000000);
 
-            graphics.fill(previewX, previewY2, previewX + ps, previewY2 + ps, 0xFF000000);
-            graphics.fill(previewX + 1, previewY2 + 1, previewX + ps - 1, previewY2 + ps - 1,
+            graphics.fill(previewX, innerBoxY, previewX + ps, innerBoxY + ps, 0xFF000000);
+            graphics.fill(previewX + 1, innerBoxY + 1, previewX + ps - 1, innerBoxY + ps - 1,
                     config.borderInnerColor | 0xFF000000);
         }
     }

@@ -11,7 +11,7 @@
 		"homepage": "https://fabricmc.net/",
 		"sources": ""
 	},
-	"license": "MIT-License",
+	"license": "MIT",
 	"icon": "assets/bettermapsmod/icon.png",
 	"environment": "*",
 	"entrypoints": {

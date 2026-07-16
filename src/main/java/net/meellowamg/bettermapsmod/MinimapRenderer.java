@@ -40,11 +40,6 @@ public class MinimapRenderer {
         int   outerColor = config.borderOuterColor | 0xFF000000;
         int   innerColor = config.borderInnerColor | 0xFF000000;
         float mScale     = config.markerScale;
-        float opacity    = Math.max(0f, Math.min(1f, config.minimapOpacity));
-        int   alphaInt   = Math.max(1, (int)(opacity * 255));
-
-        // Straight alpha color for blit — just alpha + full white RGB
-        int texColor = (alphaInt << 24) | 0xFFFFFF;
 
         Minecraft client = Minecraft.getInstance();
         int screenWidth  = client.getWindow().getGuiScaledWidth();
@@ -126,20 +121,17 @@ public class MinimapRenderer {
         context.pose().translate(x, y);
         context.pose().scale(scale, scale);
 
-        // Border always fully opaque
+        // Border
         context.fill(0, 0, total, total, outerColor);
         context.fill(1, 1, total - 1, total - 1, innerColor);
 
-        // NO black background fill — let the map texture handle its own pixels
-        // so reducing opacity shows what is behind the minimap
-
-        // Map texture with alpha in color — GUI_TEXTURED supports straight alpha
+        // Map texture
         context.blit(RenderPipelines.GUI_TEXTURED,
                 BetterMapsModClient.currentMapTexture,
                 thickness, thickness,
                 0, 0, BASE_MAP, BASE_MAP,
                 MAP_TEX_SIZE, MAP_TEX_SIZE,
-                texColor);
+                0xFFFFFFFF);
 
         // Marker
         if (config.showMarker && smoothMarkerX >= 0 && smoothMarkerY >= 0) {
@@ -162,32 +154,27 @@ public class MinimapRenderer {
 
         context.pose().popMatrix();
 
-        // Text — only show if opacity is high enough to be readable
+        // Text
         int lineCount = (coordText != null ? 1 : 0) + (biomeText != null ? 1 : 0);
-        if (lineCount > 0 && opacity > 0.05f) {
+        if (lineCount > 0) {
             boolean isBottom   = config.minimapPosition.startsWith("BOTTOM");
             int     lineHeight = Math.round(10 * scale);
             int     textStartY = isBottom
                     ? y - lineCount * lineHeight - 3
                     : y + totalSize + 3;
 
-            // Apply opacity to text too
-            int textAlpha  = alphaInt;
-            int textColor  = (textAlpha << 24) | 0xFFFFFF;
-            int shadowColor = (textAlpha << 24) | 0x303030;
-
             context.pose().pushMatrix();
             context.pose().translate(x, textStartY);
             context.pose().scale(scale, scale);
 
             if (coordText != null) {
-                context.text(client.font, coordText, 1, 1, shadowColor, false);
-                context.text(client.font, coordText, 0, 0, textColor, false);
+                context.text(client.font, coordText, 1, 1, 0xFF303030, false);
+                context.text(client.font, coordText, 0, 0, 0xFFFFFFFF, false);
                 context.pose().translate(0, 10);
             }
             if (biomeText != null) {
-                context.text(client.font, biomeText, 1, 1, shadowColor, false);
-                context.text(client.font, biomeText, 0, 0, textColor, false);
+                context.text(client.font, biomeText, 1, 1, 0xFF303030, false);
+                context.text(client.font, biomeText, 0, 0, 0xFFFFFFFF, false);
             }
 
             context.pose().popMatrix();
