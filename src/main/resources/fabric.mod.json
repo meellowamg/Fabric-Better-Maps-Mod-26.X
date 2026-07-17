@@ -3,7 +3,7 @@
 	"id": "bettermapsmod",
 	"version": "${version}",
 	"name": "Better Maps Mod",
-	"description": "Better Maps Mod by Meellowamg - Minecraft 26.1.X",
+	"description": "Better Maps Mod by Meellowamg - Minecraft 26.2",
 	"authors": [
 		"Meellowamg!"
 	],
@@ -33,7 +33,7 @@
 	],
 	"depends": {
 		"fabricloader": ">=0.19.3",
-		"minecraft": "~26.1.2",
+		"minecraft": "~26.2",
 		"java": ">=25",
 		"fabric-api": "*"
 	}

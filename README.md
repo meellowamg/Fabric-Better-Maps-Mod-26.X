@@ -1,6 +1,6 @@
 # Better Maps Mod
 
-A Minecraft 26.1.x Fabric mod that enhances the vanilla map experience with a minimap HUD, improved visuals, and full customization.
+A Minecraft 26.2 Fabric mod that enhances the vanilla map experience with a minimap HUD, improved visuals, and full customization.
 
 Made by Meellowamg
 
@@ -46,7 +46,7 @@ Made by Meellowamg
 
 ## Requirements
 
-- Minecraft 26.1.2
+- Minecraft 26.2
 - Fabric Loader 0.19.3+
 - Fabric API 0.152.1+26.1.2
 - ModMenu 18.0.0
@@ -55,7 +55,7 @@ Made by Meellowamg
 
 ## Installation
 
-1. Install Fabric Loader for Minecraft 26.1.2
+1. Install Fabric Loader for Minecraft 26.2
 2. Put Fabric API in your mods folder
 3. Put ModMenu in your mods folder
 4. Put Better Maps Mod in your mods folder

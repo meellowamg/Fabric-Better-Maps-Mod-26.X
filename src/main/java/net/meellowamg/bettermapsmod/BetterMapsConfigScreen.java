@@ -171,7 +171,7 @@ public class BetterMapsConfigScreen extends Screen {
         // Toggle Key
         this.addRenderableWidget(Button.builder(
                 Component.literal("Set Toggle Key (Controls menu)"), btn ->
-                        this.minecraft.setScreen(new ControlsScreen(this, this.minecraft.options))
+                        this.minecraft.gui.setScreen(new ControlsScreen(this, this.minecraft.options))
         ).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
 
@@ -179,7 +179,7 @@ public class BetterMapsConfigScreen extends Screen {
         this.addRenderableWidget(Button.builder(
                 Component.literal("Done"), btn -> {
                     BetterMapsConfig.save();
-                    this.minecraft.setScreen(parent);
+                    this.minecraft.gui.setScreen(parent);
                 }).bounds(cx - w / 2, y, w, h).build());
         y += spacing;
 
@@ -223,6 +223,6 @@ public class BetterMapsConfigScreen extends Screen {
     @Override
     public void onClose() {
         BetterMapsConfig.save();
-        this.minecraft.setScreen(parent);
+        this.minecraft.gui.setScreen(parent);
     }
 }
